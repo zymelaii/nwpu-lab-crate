@@ -319,34 +319,70 @@ public:
 	}
 };
 
-int main(int argc, char const *argv[])
-{
-	int n = 0;
-	std::cin >> n;
+#include <benchmark/benchmark.h>
 
-#ifndef PROFILE_CACHE_ONLY
-	Profile(Plain);
-	Profile(Freespace);
-	Profile(BranchMul);
-	Profile(BranchDiv);
-	Profile(Freespace_BranchMul);
-	Profile(Freespace_BranchDiv);
-	Profile(Freespace_BranchMul_BranchDiv);
-#endif
-
-	StartProfile(Freespace_Cache, {
-		Freespace_Cache<uint64_t, 9> pi(n, 2);
-		auto delta = pi;
-		delta /= 3;
-		for (int i = 2; delta.precision_ != 0; ++i) {
-			pi += delta;
-			delta *= i;
-			delta /= i * 2 + 1;
-		}
-		std::stringstream ss;
-		ss << pi;
-		std::cout << ss.str().substr(0, n + 2);
-	});
-
-	return 0;
+static void BM_Plain(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Plain);
+	}
 }
+
+static void BM_Freespace(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Freespace);
+	}
+}
+
+static void BM_BranchMul(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(BranchMul);
+	}
+}
+
+static void BM_BranchDiv(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(BranchDiv);
+	}
+}
+
+static void BM_Freespace_BranchMul(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Freespace_BranchMul);
+	}
+}
+
+static void BM_Freespace_BranchDiv(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Freespace_BranchDiv);
+	}
+}
+
+static void BM_Freespace_BranchMul_BranchDiv(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Freespace_BranchMul_BranchDiv);
+	}
+}
+
+static void BM_Freespace_Cache(benchmark::State& state) {
+	for (auto _ : state) {
+		const int n = state.range(0);
+		RunTargetSilent(Freespace_Cache);
+	}
+}
+
+BENCHMARK(BM_Plain)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_Freespace)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_BranchMul)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_BranchDiv)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_Freespace_BranchMul)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_Freespace_BranchDiv)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_Freespace_BranchMul_BranchDiv)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK(BM_Freespace_Cache)->Arg(64)->Arg(256)->Arg(1024)->Arg(10000);
+BENCHMARK_MAIN();

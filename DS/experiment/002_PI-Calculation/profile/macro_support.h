@@ -2,8 +2,8 @@
 
 #include "profile.h"
 
-#define Profile(Target) \
-StartProfile(Target, { \
+#define RunTarget(Target) \
+{ \
 	Target<uint64_t, 9> pi(n, { 2 }); \
 	auto delta = pi; \
 	delta /= 3; \
@@ -15,7 +15,25 @@ StartProfile(Target, { \
 	std::stringstream ss; \
 	ss << pi; \
 	std::cout << ss.str().substr(0, n + 2); \
-})
+}
+
+#define RunTargetSilent(Target) \
+{ \
+	Target<uint64_t, 9> pi(n, { 2 }); \
+	auto delta = pi; \
+	delta /= 3; \
+	for (int i = 2; delta.precision_ != 0; ++i) { \
+		pi += delta; \
+		delta *= i; \
+		delta /= i * 2 + 1; \
+	} \
+	std::stringstream ss; \
+	ss << pi; \
+	auto result = ss.str().substr(0, n + 2); \
+}
+
+#define Profile(Target) \
+StartProfile(Target, RunTarget(Target))
 
 #define DecimalSpec(ThisSpec) \
 template <typename IntType, size_t NumPerUnit, \
