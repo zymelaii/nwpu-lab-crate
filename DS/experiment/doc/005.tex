@@ -1,0 +1,227 @@
+\documentclass[UTF8, a4paper]{ctexart}
+\usepackage[margin=1in]{geometry} % 页边距调整
+\usepackage{ctex}
+\usepackage{array, amsmath, amssymb}
+
+\usepackage{booktabs, tabularx, multirow, multicol} % 表格拓展支持
+\usepackage{graphicx, subfigure, float} % 图片排版支持
+
+\usepackage{algorithm, algpseudocode} % 伪代码支持
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}  
+\renewcommand{\algorithmicensure}{\textbf{Output:}} 
+
+\usepackage{tikz, mathpazo} % 基本绘图支持
+\usepackage{flowchart} % 流程图支持
+\usepackage{pgf-umlcd} % UML类图支持
+\usetikzlibrary{arrows, shapes, chains, shapes.geometric}
+
+\usepackage{listings} % 代码块支持
+\usepackage{xcolor}
+\lstset{
+	language		= c++,
+	backgroundcolor	= \color{white},
+	basicstyle		= \footnotesize\ttfamily,
+	keywordstyle	= \color{blue},
+	stringstyle		= \color{red!58!blue!82}\ttfamily,
+	commentstyle	= \color{darkgray},
+	rulesepcolor	= \color{red!20!green!20!blue!20},
+	columns			= fullflexible,
+	breaklines		= true,
+	captionpos		= b,
+	tabsize			= 4,
+	frame			= single,
+	escapeinside	= {\%*}{*)}
+}
+%%示例
+% \begin{lstlisting}[caption={}]
+% #include <iostream>
+% int main(int argc, char *argv[]) {
+% 	std::cout << "Hello World!" << std::endl;
+% 	return 0;
+% }
+% \end{lstlisting}
+
+\usepackage{datetime} %日期
+\renewcommand{\today}{\number\year{年}\number\month{月}\number\day{日}}
+
+\begin{document}
+
+\begin{center}
+	\zihao{3}《数据结构》实验报告
+\end{center}
+\zihao{5}
+
+\newcolumntype{Y}{>{\raggedleft\arraybackslash}X}
+\noindent\begin{tabularx}{\textwidth}{XcY}
+	  {班　级:}\;\underline{DL062123}
+	& {姓　名:}\;\underline{项乔栋}
+	& {学　号:}\;\underline{2021302468} \\
+	  {邮　箱:}\;\underline{13282135976@sina.cn}
+	& {日　期:}\;\underline{\today}
+	& {编　号:}\;\underline{DS05}
+\end{tabularx}
+~\\
+
+\noindent\textbf{$\circledcirc$
+实验题目:\quad{稀疏矩阵相加}} \par
+\noindent\textbf{$\circledcirc$
+实验目的:\quad{实践密集矩阵方法到稀疏矩阵的迁移}} \par
+\noindent\textbf{$\circledcirc$
+实验内容:\quad{基于十字链表的稀疏矩阵加法实现}} \par
+
+\subsection*{一、需求分析}
+\noindent\fbox{
+\begin{tabularx}{\textwidth}{lY}
+\bf{Description}
+& \parbox[t]{\linewidth}{
+	输入两个稀疏矩阵，输出它们相加的结果。
+} \\
+
+\bf{Input}
+& \parbox[t]{\linewidth}{
+	第一行输入四个正整数，分别是两个矩阵的行m、列n、第一个矩阵的非零元素的个数t1和第二个矩阵的非零元素的个数t2。接下来的t1+t2行是三元组，分别是第一个矩阵的数据和第二个矩车的数据。三元组的第一个元素表示行号，第二个元素表示列号,第三个元素是该项的值。
+} \\
+
+\bf{Output}
+& \parbox[t]{\linewidth}{
+	输出相加后的矩阵三元组
+} \\
+
+\bf{Sample Input}
+& \fbox{\parbox[t]{\linewidth}{\bf{
+	\mbox{3 4 3 2} \\
+	\mbox{1 1 1} \\
+	\mbox{1 3 1} \\
+	\mbox{2 2 2} \\
+	\mbox{1 2 1} \\
+	\mbox{2 2 3}
+}}} \\
+
+\bf{Sample Output}
+& \fbox{\parbox[t]{\linewidth}{\bf{
+	\mbox{1 1 1} \\
+	\mbox{1 2 1} \\
+	\mbox{1 3 1} \\
+	\mbox{2 3 5}
+}}}
+\end{tabularx}}
+
+\subsection*{二、概要设计}
+十字链表维护了更多的节点信息，天然地具备了有序性。假定实现十字链表的插入操作，那么只需稍微拓展该操作使其支持加和，则原问题就转换为链表遍历与拓展插入的组合。 \par
+1.\;基本操作: \par
+	CreateFromIO() $\rightarrow$ SparseMatrix \par
+	\qquad\textbf{操作结果:}\;从IO流创建稀疏矩阵 \par
+	Add(lhs:SparseMatrix,rhs:SparseMatrix) $\rightarrow$ SparseMatrix \par
+	\qquad\textbf{操作结果:}\;获取稀疏矩阵的加和 \par
+	Insert(matrix:SparseMatrix,e:Triple) $\rightarrow$ void \par
+	\qquad\textbf{操作结果:}\;向稀疏矩阵插入元素，若元素已存在，则处理元素加和 \par
+	Erase(matrix:SparseMatrix,row,col) $\rightarrow$ void \par
+	\qquad\textbf{操作结果:}\;删除稀疏矩阵(row,col)处的元素 \par
+	Output(matrix:SparseMatrix) $\rightarrow$ void \par
+	\qquad\textbf{操作结果:}\;输出稀疏矩阵 \par
+2.\;程序模块: \par
+1) 主程序 \par
+2) IO支持 \par
+3) 稀疏矩阵加法 \par
+\begin{figure}[H]
+	\begin{minipage}[t]{\linewidth}
+		\centering
+		\includegraphics[width=125mm,height=64mm]{./assets/DS05-1}
+	\end{minipage}
+\end{figure}
+
+\subsection*{三、详细设计}
+\begin{algorithm}[H]
+\begin{algorithmic}[1]
+\caption{Erasure of Orthogonal List}
+\Require SparseMatrix: $\mathbf{M}$, Integer: $\mathbf{row},\mathbf{col}$
+\Ensure $\mathbf{M}$ with ($\mathbf{row},\mathbf{col}$) erased
+\State find e in column $\mathbf{col}$, where e.row = $\mathbf{row}$
+\If {e $\neq$ nil}
+	\State unlink e from column $\mathbf{col}$
+	\State unlink e from row $\mathbf{row}$
+	\State release e
+\EndIf
+\State return $\mathbf{M}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\begin{algorithmic}[1]
+\caption{Sparse Matrix Addition based on Orthogonal List}
+\Require SparseMatrix: $\mathbf{A}$,$\mathbf{B}$
+\Ensure A+B as SparseMatrix
+\For {e in $\mathbf{B}$}
+	\State insert($\mathbf{A}$, e)
+\EndFor
+\State return $\mathbf{A}$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\begin{algorithmic}[1]
+\caption{Extended Insertion of Orthogonal List}
+\Require SparseMatrix: $\mathbf{M}$, Triple: $\mathbf{E}$
+\Ensure $\mathbf{M}$ with $\mathbf{E}$ inserted
+\State find last e in row $\mathbf{E}$.row, where e.col < $\mathbf{E}$.col
+\If {e.right.col = $\mathbf{E}$.col}
+	\State e.value += $\mathbf{E}$.value
+	\If {e.value = 0}
+		\State erase($\mathbf{M}$, $\mathbf{E}$.row, $\mathbf{E}$.col)
+	\EndIf
+\Else
+	\State let $\mathbf{node}$ $\leftarrow$ $\mathbf{E}$ as orthogonal list node
+	\State insert $\mathbf{node}$ after e
+	\State fix linkage in column $\mathbf{E}$.col
+\EndIf
+\State return $\mathbf{M}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection*{四、使用说明、测试分析与结果}
+\subsubsection*{1、使用说明}
+1) 本程序可以通过任意编译器生成目标文件并在当前平台运行。 \par
+2) 进入程序后依照需求的输入样式输入数据，手动输入与流式输入都是被允许的。 \par
+3) 请确保输入矩阵的行列标从1开始计数。 \par
+\subsubsection*{2、测试结果与分析}
+2.1\;\textbf{实际环境} \par
+对于所有输入，矩阵元素以行主序输入\par
+2.2\;\textbf{边界情况} \par
+矩阵和产生零值元素 \par
+2.3\;\textbf{测试结果} \par
+目标代码通过全部测试，无需纠正
+\subsubsection*{3、调试过程问题分析与解决办法}
+编码与测试环节皆未产生问题，跳过调试环节
+\subsubsection*{4、设计与实现的回顾讨论与分析}
+对于十字链表实现的稀疏矩阵，其加法与节点插入操作极大相似。故而本文使用将插入方法进行拓展，使其支持同坐标元素的加和。这样实现后加法本身的操作就极大弱化，目标的重点就落在了十字链表的方法支持上。创建链表需要插入方法，加和零元素需要删除方法。完成这两个方法，整个问题就迎刃而解。
+\subsubsection*{5、运行界面}
+\begin{figure}[H]
+	\begin{minipage}[t]{\linewidth}
+		\centering
+		\includegraphics[width=125mm,height=50mm]{./assets/DS05-2}
+		\caption{前置环境}
+	\end{minipage}
+\end{figure}
+\begin{figure}[H]
+	\begin{minipage}[t]{\linewidth}
+		\centering
+		\includegraphics[width=125mm,height=40mm]{./assets/DS05-3}
+		\caption{结果输出}
+	\end{minipage}
+\end{figure}
+
+\subsection*{五、实验总结}
+看似是一道稀疏矩阵的问题，实际上只是对十字链表结构的实践。再根本些，本内容的目的又未尝不可以是对链表的进阶掌握。将问题转换、划分，比起具体的问题，模型化问题的组合、复合往往更容易解决。
+
+~\\
+\zihao{-4}
+\textbf{教师评语：}
+~\\
+\textbf{实验成绩：}
+
+\begin{flushright}
+\mbox{指导教师签名:\qquad\qquad} \\
+\mbox{批阅日期:\qquad\qquad}
+\end{flushright}
+
+\end{document}
