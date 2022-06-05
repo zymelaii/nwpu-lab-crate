@@ -30,9 +30,9 @@ int main(int argc, char const *argv[])
         }
     }
 
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            for (int k = 0; k < n; ++k) {
+    for (int k = 0; k < n; ++k) {
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
                 if (i != j && D[i][j] > D[i][k] + D[k][j]) {
                     D[i][j] = D[i][k] + D[k][j];
                     P[i][j] = P[i][k]; //@ let i->j == i->k + k->... + ...->j + j->j
