@@ -1,0 +1,12 @@
+~$*.doc*
+
+*.class
+
+*.a
+*.so
+*.so.*
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
