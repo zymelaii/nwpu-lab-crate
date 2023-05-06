@@ -1,6 +1,6 @@
 import java.util.*;
 
-class GradeMantainer {
+class GradeMaintainer {
     private class Course {
         public String name;
         public double credit;
@@ -94,7 +94,7 @@ class GradeMantainer {
 
 public class App {
     public static void main(String[] argv) {
-        GradeMantainer db = new GradeMantainer();
+        GradeMaintainer db = new GradeMaintainer();
 
         db.addCourse("数学", 4);
         db.addCourse("英语", 3.5);
