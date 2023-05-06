@@ -2,7 +2,7 @@ class People {
     private double weight_;
     private double height_; //!< NOTE: 我拒绝服从要求 #1
 
-    protected void setBodyStat(double weight, double height) {
+    protected void setBodyStat(double height, double weight) {
         weight_ = weight;
         height_ = height;
     }
