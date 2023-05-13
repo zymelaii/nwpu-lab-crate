@@ -1,0 +1,35 @@
+@startuml uml 01
+
+note as remark
+    此处同名的 Class* 仅用作关系的演示，互相独立互不关联
+end note
+
+class a1 as "Class2"
+class a2 as "Class2"
+class a3 as "Class2"
+class a4 as "Class2"
+class a5 as "Class3"
+
+class b1 as "Class1"
+class b2 as "Class3"
+class b3 as "Class4"
+interface b4 as "Interface1"
+class b5 as "Class2"
+
+a1 -- b1: 关联关系
+a2 ..> b2: 依赖关系
+a3 --|> b3: 泛化关系
+a4 ..|> b4: 实现关系
+a5 --o b5: 聚合关系
+
+class VisibilityFoobar {
+    + foo: int
+    - bar: int
+    # foobar: int
+    + Foo(): void
+    - Bar(): void
+    # FooBar(): void
+    ~ FOOBAR(): void
+}
+
+@enduml
