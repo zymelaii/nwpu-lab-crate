@@ -1,0 +1,88 @@
+@startuml uml 02 - T3
+
+A -left-> "1" B
+A -right-> "1..*" C
+
+@enduml
+
+@startuml uml 02 - T4
+
+class S as "Student"
+class C as "Course"
+class T as "Teacher"
+class B as "Textbook"
+
+S "*" -- "*" C
+T "1..*" -- "*" C
+C "1" -- "0..1" B
+
+@enduml
+
+@startuml uml 02 - T5
+
+class Product {
+    + id: String
+    + name: String
+    + price: float
+    + producer: String
+}
+
+class System {
+    - products: ArrayList<Product>
+    + addProduct(Product product): void
+    + removeProduct(String id): boolean
+    + modifyProduct(String id, Product product): boolean
+}
+
+System --> "*" Product
+
+@enduml
+
+@startuml uml 02 - T6
+
+class Product {
+    + id: String
+    + name: String
+    + price: float
+    + producer: String
+    + discount: float
+    + color: String
+    + shape: String
+    + getPrice(): float
+}
+
+class System {
+    - products: ArrayList<Product>
+    + addProduct(Product product): void
+    + removeProduct(String id): boolean
+    + modifyProduct(String id, Product product): boolean
+    + markAsDiscount(String id, float discount): void
+    + queryByColor(String color): Product
+    + queryByShape(String shape): Product
+}
+
+System --> "*" Product
+
+@enduml
+
+@startuml uml 02 - T7
+
+class Invoice {
+    + amount: double
+    + date: Date
+    + customer: String
+    + specification: String
+    + administrator: String
+    - {static} number_of_invoices: int
+    + Invoice(): Invoice
+    + print(): void
+}
+
+@enduml
+
+@startuml uml 02 - T8
+
+IncomeOrder --> "1..*" OrderItem
+OrderItem "1" -- "1" Product
+
+@enduml
