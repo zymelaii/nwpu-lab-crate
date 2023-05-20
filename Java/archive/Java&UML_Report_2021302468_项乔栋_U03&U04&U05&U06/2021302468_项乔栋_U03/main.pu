@@ -1,0 +1,92 @@
+@startuml uml 03 - G3
+
+Country o-- Province
+
+@enduml
+
+@startuml uml 03 - A3
+
+note as sample
+    示例代码
+    class A {}
+    class A1 extends A {}
+    class A2 extends A {}
+    public class Test {
+        public static void main(String args[]) {
+            A a_base = new A();
+            A1 a_11 = new A1();
+            A1 a_12 = new A1();
+            A2 a_2 = new A2();
+        }
+    }
+end note
+
+object "a_base: A" as a0
+object "a_11: A1" as a1
+object "a_12: A1" as a2
+object "a_2: A2" as a3
+
+a1 --|> a0
+a2 --|> a0
+a3 --|> a0
+
+@enduml
+
+@startuml uml 03 - T1
+
+class UseRecord
+class AccountBook {
+    - records: ArrayList<UseRecord>
+    + queryByUser(user: User): UseRecord
+    + queryByComputer(pc: Computer): UseRecord
+    + addRecord(userId: String, pcId: String): void
+}
+class Admin
+
+note top of Admin {
+    假定只有唯一一个负责人（账户）
+}
+
+UseRecord -up-* AccountBook
+Admin -- AccountBook
+
+class User {
+    - id: String
+    + getId(): String
+}
+
+class Computer {
+    - id: String
+    + getId(): String
+}
+
+note top of User {
+    假定只有当市民开始使用电脑后用户才被构造
+}
+
+User "0..*" --- "1..*" Computer
+
+User "0..*" -left- "1" Admin
+
+@enduml
+
+@startuml uml 03 - T2
+
+class "员工" as a
+class "普通员工" as a1
+class "管理层员工" as a2
+class "联谊会" as m
+class "学习会" as n
+
+a1 -left-|> a
+a2 -right-|> a
+
+a -up-> "*" m: 参加
+a -down-> "*" n: 参加
+
+a "1..*" --> "*" m: 主办
+a1 "1..*" --> "*" n: 举办
+
+a2 --> "1..*" n: 评价
+
+@enduml

@@ -1,0 +1,1 @@
+main.pu 从 PlantUML 编写，可以手动安装 PlantUML 并在命令行编译，也可以通过 VSCode 的 PlantUML 同名插件（插件 ID 为 jebbs.plantuml）通过命令行面板的 "PlantUML: Export Current File Diagrams" 编译导出。

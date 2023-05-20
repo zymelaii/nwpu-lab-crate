@@ -1,0 +1,25 @@
+@startuml uml 06
+
+state 工作中 {
+    state "低档风速" as low
+    state "中档风速" as medium
+    state "高档风速" as high
+
+    [*] --> low
+    low --> medium: 置中档
+    low --> high: 置高档
+    medium --> low: 置低档
+    medium --> high: 置高档
+    high --> low: 置低档
+    high --> medium: 置中档
+}
+
+state init <<choice>>
+
+[*] -left-> 停转
+停转 --> init: 开关置 ON
+init --> 工作中: 第一次启动
+init --> 工作中[H]
+工作中 --> 停转: 开关置 OFF
+
+@enduml

@@ -1,0 +1,20 @@
+@startuml uml 05
+
+actor "库存管理人员" as manager
+boundary "补充商品确认页面" as gui
+control "库存管理系统" as system
+database "商品列表" as list
+collections "补充商品列表" as list2
+
+manager -> gui: 打开界面
+gui -> system: 请求数据
+system -> list: 请求商品列表数据
+list --> system: 发送商品列表数据
+system -> system: 确认库存数
+system -> list2: 追加库存数未达到安全库存数的商品信息
+system -> list2: 请求补充商品数据
+list2 --> system: 返回所有补充商品数据
+system --> gui: 发送补充商品数据
+gui -> gui: 显示补充商品列表
+
+@enduml
