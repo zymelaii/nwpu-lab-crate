@@ -1,0 +1,66 @@
+@startuml uml 04 - G2
+
+:Actor:
+
+(Usecase)
+
+:Actor2: --> (Usecase2)
+
+@enduml
+
+@startuml uml 04 - G3
+
+(Use1) ..> (Use2): <<include>>
+(Use3) ..> (Use4): <<extend>>
+(Use5) --|> (Use6)
+
+@enduml
+
+@startuml uml 04 - G4
+
+:房产经纪人: as e
+(打开房源信息页面) as info
+(登录信息) as loginInfo
+(确认提交信息) as submit
+(录入房源信息) as add
+(修改房源信息) as modify
+e --> info
+e --> add
+e --> modify
+loginInfo .up.> info: <<extend>>
+add ..> submit: <<include>>
+modify ..> submit: <<include>>
+
+note top of info {
+    此处将打开房源信息面板理解为“查看房源信息”
+}
+
+note bottom of loginInfo {
+    此处将登录信息理解为“查看当前登录者的信息”
+}
+
+@enduml
+
+@startuml uml 04 - T1
+
+:学生: as user
+
+(检索) as query
+(借出) as borrow
+(归还) as return
+(查阅已借图书) as list
+(认证信息) as auth
+
+user --> query
+user --> borrow
+user --> return
+
+list .up.> borrow: <<extend>>
+
+query ..> auth: <<include>>
+borrow ..> auth: <<include>>
+return ..> auth: <<include>>
+
+:学生认证系统: -up-> auth
+
+@enduml
