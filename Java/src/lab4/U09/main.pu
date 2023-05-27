@@ -1,0 +1,12 @@
+@startuml uml 09 - G6
+
+[Student]
+[Teacher]
+[Course]
+[Textbook]
+
+[Student] ..> [Course]
+[Course] ..> [Teacher]
+[Course] ..> [Textbook]
+
+@enduml
