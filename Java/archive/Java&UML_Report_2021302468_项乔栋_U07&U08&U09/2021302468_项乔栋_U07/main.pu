@@ -1,0 +1,47 @@
+@startuml uml 07 - G5
+
+package A
+package B
+
+A ..> B
+B ..> A
+
+note right of A {
+    A, B 循环依赖
+}
+
+package A2
+package B2
+package Common
+
+A2 ..> Common
+B2 ..> Common
+
+note top of A2 {
+    修正后的 A 包
+}
+
+note top of B2 {
+    修正后的 B 包
+}
+
+note left of Common {
+    提取 A、B 的公共依赖部分作为 Common 包
+}
+
+@enduml
+
+@startuml uml 07 - G8
+
+package A
+package T
+
+A ..> T
+
+note "B、C、D 循环依赖" as _
+
+note right of T {
+    将 B、C、D 整合为一个包
+}
+
+@enduml

@@ -1,0 +1,95 @@
+@startuml uml 08 - G6
+
+start
+
+:let i=0;
+
+while (i<9?)
+    :let i=i+1;
+endwhile
+
+stop
+
+@enduml
+
+@startuml uml 08 - A2
+
+|用户|
+start
+:提交订单;
+|平台|
+:生成订单;
+|用户|
+:选择支付宝作为支付方式;
+if (取消订单或交易超时?) then (yes)
+    :交易失败;
+else (no)
+    |平台|
+    :接受用户付款;
+    fork
+        |商家|
+        :商品发货;
+    fork again
+        |物流|
+        :生成物流信息;
+    end fork
+    |用户|
+    :确认收货;
+    fork
+        |平台|
+        :结束订单;
+    fork again
+        |商家|
+        :完成订单;
+    end fork
+endif
+|用户|
+stop
+
+@enduml
+
+@startuml uml 08 - A3
+
+|用户|
+start
+:检索书籍;
+|系统|
+:响应检索结果;
+|用户|
+if (书籍存在?) then (no)
+    stop
+endif
+if (确认购买?) then (no)
+    stop
+endif
+:提交订单;
+|系统|
+:生成订单;
+|用户|
+:选择支付方式;
+if (支付成功) then (no)
+    :交易失败;
+    stop
+endif
+|系统|
+:接受付款;
+fork
+    |商家|
+    :书籍发货;
+fork again
+    |物流|
+    :生成物流信息;
+end fork
+|用户|
+:确认收货;
+fork
+    |系统|
+    :完成订单;
+fork again
+    |商家|
+    :接受货款;
+end fork
+|用户|
+stop
+
+@enduml
