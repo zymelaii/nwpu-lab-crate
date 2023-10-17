@@ -1,0 +1,119 @@
+<html>
+<head>
+<title>GeekOS FAQ</title>
+</head>
+
+<body>
+<h1>GeekOS FAQ</h1>
+
+<p> Maintained by David Hovemeyer &lt;<a href="mailto:daveho@cs.umd.edu">daveho@cs.umd.edu</a>&gt;
+
+<p> This document attempts to answer frequently asked questions
+about <a href="http://geekos.sourceforge.net/">GeekOS</a>.
+
+<p> Last modified on $Date: 2004/02/07 19:31:45 $.
+
+<h2>Contents</h2>
+
+<ol>
+<li> <a href="#q1">What is GeekOS?</a>
+<li> <a href="#q2">What do I need to run GeekOS?</a>
+<li> <a href="#q3">Why did you write another instructional operating system?</a>
+<li> <a href="#q4">Why does GeekOS suck so much?</a>
+<li> <a href="#q5">Will GeekOS run program <i>X</i>?</a>
+</ol>
+
+<h2><a name="q1">1. What is GeekOS?</a></h2>
+
+<p> GeekOS is an instructional operating system.&nbsp; It is intended to
+be used in undergraduate operation system courses, or for self-study.&nbsp;
+It implements a very minimal set of features on top of bare x86 PC
+hardware.&nbsp; In a series of projects included in the GeekOS distribution,
+students add important operation system features such as processes,
+virtual memory, a filesystem, and interprocess communication.&nbsp; Once
+all of the projects have been completed, GeekOS resembles a very simple
+version of Unix.
+
+<h2><a name="q2">2. What do I need to run GeekOS?</a></h2>
+
+<p> GeekOS runs mainly on the <a href="http://bochs.sourceforge.net/">Bochs</a>
+PC emulator.&nbsp; Running GeekOS on an emulator has several important
+advantages over running it on a real computer:
+
+<ol>
+<li> The emulator boots very quickly (around 1 second), allowing
+a much quicker compile/edit/debug cycle
+<li> The logfile produced by bochs (bochs.out) contains very useful
+information for diagnosing crashes
+<li> Recent versions of Bochs (2.0 and later) can be build with
+stubs for the gdb debugger, allowing easy debugging of the kernel
+</ol>
+
+<p> Please note that although GeekOS is
+<a href="http://geekos.sourceforge.net/hardware.html">tested on real hardware</a>
+from time to time, you will probably need to do some hacking to get
+it working on <em>your</em> PC.&nbsp; Submissions of bug fixes
+that make GeekOS work on more hardware are
+<a href="mailto:daveho@cs.umd.edu">gladly accepted</a>.
+
+<p> To compile GeekOS from source, you will need the following software:
+
+<ul>
+<li> <a href="http://gcc.gnu.org/">gcc</a> targeting i386/ELF; the default
+compiler on Linux and FreeBSD systems will work, and cross compilers
+targeting i386-elf should also work
+<li> A host platform C compiler supporting ANSI C
+<li> <a href="http://nasm.sourceforge.net/">The Netwide Assembler (NASM)</a>
+<li> <a href="http://www.gnu.org/software/make/">GNU Make</a>
+<li> <a href="http://www.perl.com/">Perl</a>, version 5.0 or later
+<li> AWK, egrep
+</ul>
+
+<h2><a name="q3">3. Why did you write another instructional operating system?</a></h2>
+
+<p> Good question.&nbsp; There are a lot of other good instructional
+operating systems out there: <a href="http://www.cs.vu.nl/~ast/minix.html">Minix</a>,
+<a href="http://www.tik.ee.ethz.ch/~topsy/">Topsy</a>,
+<a href="http://www.eecs.harvard.edu/~syrah/os161/">OS/161</a>,
+and <a href="http://www.cs.washington.edu/homes/tom/nachos/">Nachos</a>,
+to name a few.
+
+<p> GeekOS pursues slightly different design goals than any of the above.&nbsp;
+I wanted to combine <em>simplicity</em> with <em>realism</em>.&nbsp; Simplicity
+means that GeekOS tries to use the simplest algorithm or data structure
+that will work; for example, you will find lots of linked lists and arrays in GeekOS,
+but no hash tables or balanced trees.&nbsp; Realism means that GeekOS
+resembles a real operating system.&nbsp; When the projects are completed,
+GeekOS has processes, paged virtual memory, and a hierarchical filesystem.&nbsp;
+Adventurous hackers can boot GeekOS on a real PC.
+
+<h2><a name="q4">4. Why does GeekOS suck so much?</a></h2>
+
+<p> Many of the implementation decisions made in GeekOS would be unacceptable
+in a real operating system.&nbsp; For example:
+
+<ul>
+<li> No support for PCI devices
+<li> IDE disk driver uses CHS addressing and programmed I/O
+<li> IDE requests proceed synchronously with busy waiting
+<li> Page stealing does a complete walk of every page of memory
+     with interrupts disabled
+<li> Executable loading copies entire program image into
+     memory twice before process starts
+<li> And so on...
+</ul>
+
+<p> Keep in mind that the main goal of GeekOS is <em>simplicity</em>.&nbsp;
+If you want to fix some of the more egregious limitations in GeekOS,
+<em>in a way that maintains or improves the simplicity of the system</em>,
+please <a href="mailto:daveho@cs.umd.edu">submit a patch</a>.
+
+<h2><a name="q5">5. Will GeekOS run program <i>X</i>?</a></h2>
+
+<p> GeekOS does not conform to any existing API standard, and has only a
+very minimal C library.&nbsp; Therefore, any program written for another
+operating system will require considerable porting effort.
+
+</body>
+
+</html>

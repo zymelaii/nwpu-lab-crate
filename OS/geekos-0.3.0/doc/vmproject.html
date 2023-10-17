@@ -1,0 +1,244 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 9. Project 4: Virtual Memory</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="schedulingproject.html" title="Chapter 8. Project 3: Scheduling"><link rel="next" href="fsproject.html" title="Chapter 10. Project 5: A Filesystem"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 9. Project 4: Virtual Memory</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="schedulingproject.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="fsproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="vmproject"></a>Chapter 9. Project 4: Virtual Memory</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="vmproject.html#project4_intro">1. Introduction</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_pagetables">2. Changing the Project to Use Page Tables</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_pagefaults">3. Handling Page Faults</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_pagingout">4. Paging Out Pages</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_pagein">5. Page Ins</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_copyinout">6. Copying Data Between Kernel and User Memory</a></span></dt><dt><span class="sect1"><a href="vmproject.html#project4_implementation">7. Implementation</a></span></dt><dd><dl><dt><span class="sect2"><a href="vmproject.html#project4_pagingfuncs">7.1. Functions in src/geekos/paging.c</a></span></dt><dt><span class="sect2"><a href="vmproject.html#project4_uservmfuncs">7.2. Functions in src/geekos/uservm.c</a></span></dt></dl></dd><dt><span class="sect1"><a href="vmproject.html#project4_extracredit">8. Extra Credit</a></span></dt><dd><dl><dt><span class="sect2"><a href="vmproject.html#project4_fastvictimselection">8.1. Improving Find_Page_To_Page_Out()</a></span></dt><dt><span class="sect2"><a href="vmproject.html#project4_userheap">8.2. Adding a User Heap</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_intro"></a>1. Introduction</h2></div></div><div></div></div><p>
+The purpose of this project is to add paging to the GeekOS kernel.  This will
+require many small, but difficult changes to your project.  More than
+any previous project, it will be important to implement one thing,
+test it and then move to the next one.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_pagetables"></a>2. Changing the Project to Use Page Tables</h2></div></div><div></div></div><p>
+The first step is to modify your project to use page tables and
+segmentation rather than just segments to provide memory protection.
+To enable using page tables, every region of memory your access (both
+kernel and data segment) must have an entry in a page table.  The way
+this will work is that there will be a single page table for all kernel
+only threads, and a page table for each user process.  In addition,
+the page tables for user mode processes will also contain entries to
+address the kernel mode memory.  The memory layout for this is shown in
+<a href="vmproject.html#vmlayout" title="Figure 9.1. Virtual memory layout in GeekOS.">Figure 9.1, &#8220;Virtual memory layout in GeekOS.&#8221;</a>.
+</p><div class="figure"><a name="vmlayout"></a><p class="title"><b>Figure 9.1. Virtual memory layout in GeekOS.</b></p><div><img src="figures/vm2.png" alt="Virtual memory layout in GeekOS."></div></div><p>
+The kernel memory should be a one to one mapping of all of the physical
+memory in the processor (this limits the physical memory of the
+processor to 2GB, but this is not a critical limit for this project).
+The page table entries for this memory should be marked so that this
+memory is only accessible from kernel mode (i.e. the <tt class="literal">userMode</tt> bit in
+the page directory and page table should be 0). To make this change,
+you should start by creating a page directory and page table entries
+for the kernel threads by writing a function that initializes the page
+tables and enables paging mode in the processor.  You will do
+this in the <tt class="literal">Init_VM()</tt> function in
+<tt class="filename">src/geekos/paging.c</tt>.
+</p><p>
+To set up page tables, you will need to allocate a page directory
+(using <tt class="literal">Alloc_Page()</tt>) and then allocate page
+tables for the entire region that will be mapped into this memory
+context.  You will need to fill out the appropriate fields in
+the page tables and page directories, which are represented by the
+<tt class="literal">pte_t</tt> and <tt class="literal">pde_t</tt> datatypes defined
+in <tt class="filename">&lt;geekos/paging.h&gt;</tt>.  Finally, to enable
+paging for the first time, you will need to call an assembly routine,
+<tt class="literal">Enable_Paging()</tt>, that will take the base address of
+your page directory as a parameter and then load the passed page directory
+address into register <tt class="literal">cr3</tt>, and then set the paging
+bit in <tt class="literal">cr0</tt> (the MSB, bit 31).
+</p><p>
+The next step is to modify your user processes to all use pages in the
+user region.  This is a two step process.  First, you need to allocate
+a page directory for this user space.  You should copy all of the
+mappings from the kernel mode page directory for those memory regions in
+the low range of memory.  Next you need to allocate page table entries
+for the user processes text and data regions.  Do not allocate extra
+space for the stack here.  Finally, you should allocate space for one
+page of stack memory at the end of the virtual address range (i.e. the
+last entry in the last page table).  For the user space page mappings,
+make sure to enable the <tt class="literal">userMode</tt> bits in both the page directory and
+page table entries.
+</p><p>
+You will also need to change some aspects of how the code from Project
+1 sets things up.  You should change the code and data segments
+for user processes so that the base address is
+be 0x80000000, and the limit is 0x80000000.  This will allow
+the user space process to think that its virtual location 0 is
+the 2GB point in the page layout and will greatly simplify your kernel
+compared to traditional paged systems.
+You will also need to add code to <tt class="literal">Switch_To_Address_Space()</tt>
+to switch the PTBR register (<tt class="literal">cr3</tt>) as part of a context switch;
+where you load the LDT of the user context, you should also load the address
+of the page directory for the process, which
+is the <tt class="literal">pageDir</tt> field in the <tt class="literal">User_Context</tt> structure.
+<sup>[<a name="id2975026" href="#ftn.id2975026">3</a>]</sup>
+</p><p>
+When you are allocating pages of memory to use as part of
+a user address space, you should use a new function,
+<tt class="literal">Alloc_Pageable_Page()</tt> (prototype in
+<tt class="filename">&lt;geekos/mem.h&gt;</tt>.
+The primary difference
+is that any page allocated by this routine should have a special flag
+<tt class="literal">PAGE_PAGEABLE</tt> set in the flags field of its entry in the
+corresponding <tt class="literal">Page</tt> data structure.  Having this flag set marks
+the page as being eligible to be stolen and paged out to disk by the kernel when
+a page of memory is needed elsewhere, but no free pages are available.
+Note that you should <span class="emphasis"><em>not</em></span> allocate page tables
+or page directories using this function.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_pagefaults"></a>3. Handling Page Faults</h2></div></div><div></div></div><p>
+One of the key features of using paging is to have the operating system
+handle page faults.  To do this you will need to write a page fault
+interrupt handler.  The first thing the page fault handler will need to
+do is to determine the address of the page fault; you can
+find out this address by calling the
+<tt class="literal">Get_Page_Fault_Address()</tt> function
+(prototype in <tt class="filename">&lt;geekos/paging.h&gt;</tt>.
+Also, the <tt class="literal">errorCode</tt> field of the <tt class="literal">Interrupt_State</tt>
+data structure passed to the page fault interrupt handler contains information
+about the faulting access. This information is defined in the
+<tt class="literal">faultcode_t</tt> data type defined in
+<tt class="filename">&lt;geekos/paging.h&gt;</tt>.
+Once the fault address and fault code have been obtained,
+the page fault handler will need to determine an appropriate action to take.
+Possible reasons for a page fault, and the action to take are shown in
+<a href="vmproject.html#faultactions" title="Figure 9.2. Actions to be taken when a page fault occurs.">Figure 9.2, &#8220;Actions to be taken when a page fault occurs.&#8221;</a>.
+</p><div class="figure"><a name="faultactions"></a><p class="title"><b>Figure 9.2. Actions to be taken when a page fault occurs.</b></p><div><img src="figures/faultaction2.png" alt="Actions to be taken when a page fault occurs."></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_pagingout"></a>4. Paging Out Pages</h2></div></div><div></div></div><p>
+At some point, your operating system will run out of page frames to
+assign to processes.  In this case, you will need to pick a page to evict
+from memory and write it to the backing store (paging file). You should
+implement a version of pseudo-LRU.  Use the reference bit in the page
+tables to keep track of how frequently pages are accessed. To do this,
+add a <tt class="literal">clock</tt> field to the <tt class="literal">Page</tt>
+structure in <tt class="filename">&lt;geekos/mem.h&gt;</tt>.  You should
+update the clock on every page fault.
+</p><p>
+You will also need to manage the use of the paging file. The paging file
+consists of a group of consecutive 512 bytes disk blocks.  Calling the
+routine <tt class="literal">Get_Paging_Device()</tt>
+(prototype in <tt class="filename">&lt;geekos/vfs.h&gt;</tt>) will return
+a <tt class="literal">Paging_Device()</tt> object; this consists of
+the block device the paging file is on, the start sector (disk block
+number), and the number of sectors (disk blocks) in the paging file.
+Each page will consume 8 consecutive disk blocks.
+To read/write the paging device, use the functions
+<tt class="literal">Block_Read()</tt> and <tt class="literal">Block_Write()</tt>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_pagein"></a>5. Page Ins</h2></div></div><div></div></div><p>
+When a page is paged out to disk, the kernel stores the index
+returned by <tt class="literal">Find_Space_On_Paging_File()</tt> in
+the <tt class="literal">pageBaseAddr</tt> field of the page table entry
+(<tt class="literal">pte_t</tt>), and also stores the value
+<tt class="literal">KINFO_PAGE_ON_DISK</tt> in the entry's
+<tt class="literal">kernelInfo</tt> field.  In your page fault handler,
+when you find a non-present page that is marked as being on disk,
+you can use the value stored in <tt class="literal">pageBaseAddr</tt>
+to find the data for the page in the paging file.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_copyinout"></a>6. Copying Data Between Kernel and User Memory</h2></div></div><div></div></div><p>
+Because the GeekOS kernel is preemptible and user memory pages 
+can be stolen at any time, some subtle issues arise when copying data
+between the kernel and user memory spaces.  Specifically, the kernel
+must <span class="emphasis"><em>never</em></span> read or write data on a user
+memory page if that page has the <tt class="literal">PAGE_PAGEABLE</tt>
+bit set at any time that a thread switch could occur.
+The reason is simple; if a thread switch did occur, another
+process could run and steal the page.  When control returns to the
+original thread, it would be reading or writing the wrong data,
+causing serious memory corruption.
+</p><p>
+There are two general approaches to dealing with this problem.
+One is that interrupts (and thus preemption) should be disabled
+while touching user memory.  This approach is not a complete solution,
+because it is not legal to do I/O (i.e., <tt class="literal">Block_Read()</tt>
+and <tt class="literal">Block_Write()</tt>) while interrupts are disabled.
+</p><p>
+The second approach is to use <span class="emphasis"><em>page locking</em></span>.
+Before touching a user memory page, the kernel will atomically
+clear the <tt class="literal">PAGE_PAGEABLE</tt> flag for the page;
+this is referred to as <span class="emphasis"><em>locking</em></span> the page.
+Once a page is locked, the kernel can then freely modify the page,
+safe in the knowledge that
+the page will not be stolen by another process.  When it is done
+reading or writing the page, it can <span class="emphasis"><em>unlock</em></span>
+the page by clearing the
+<tt class="literal">PAGE_PAGEABLE</tt> flag.  Note that page flags
+should only be modified while interrupts are disabled.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_implementation"></a>7. Implementation</h2></div></div><div></div></div><p>
+In order to implementing virtual memory and paging, you will need to
+implement several functions.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project4_pagingfuncs"></a>7.1. Functions in <tt class="filename">src/geekos/paging.c</tt></h3></div></div><div></div></div><div class="itemizedlist"><ul type="disc"><li><p>
+<tt class="literal">Init_VM()</tt> (defined in )
+will set up the initial kernel page directory and page tables,
+and install a page fault handler function.
+</p></li><li><p>
+<tt class="literal">Init_Paging()</tt> (defined in <tt class="filename">src/geekos/paging.c</tt>)
+should initialize any data structures you need to manage the paging file.
+As mentioned earlier, the <tt class="literal">Get_Paging_Device()</tt> function
+specifies what device the paging file is located on, and the range
+of disk blocks it occupies.
+</p></li><li><p>
+<tt class="literal">Find_Space_On_Paging_File()</tt> should find a free
+page-sized chunk of disk space in the paging file.
+It should return an index identifying the chunk, or -1 if
+no space is available in the paging file.
+</p></li><li><p>
+<tt class="literal">Free_Space_On_Paging_File()</tt> will free a chunk
+of space in the paging file previously allocated by
+<tt class="literal">Find_Space_On_Paging_File()</tt>.
+</p></li><li><p>
+<tt class="literal">Write_To_Paging_File()</tt> writes the data stored
+in a page of memory to the paging file.
+</p></li><li><p>
+<tt class="literal">Read_From_Paging_File()</tt> reads the data
+for a page stored in the paging file into memory.
+</p></li></ul></div></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project4_uservmfuncs"></a>7.2. Functions in <tt class="filename">src/geekos/uservm.c</tt></h3></div></div><div></div></div><div class="itemizedlist"><ul type="disc"><li><p>
+<tt class="literal">Destroy_User_Context()</tt> frees all of the memory and
+other resources (semaphores, files) used by a process.
+</p></li><li><p>
+<tt class="literal">Load_User_Program()</tt> loads an executable file
+into memory, creating a complete, ready-to-execute user address space.
+</p></li><li><p>
+<tt class="literal">Copy_From_User()</tt> copies data from a user buffer
+into a kernel buffer.
+</p></li><li><p>
+<tt class="literal">Copy_To_User()</tt> copies data from a kernel
+buffer into a user buffer.
+</p></li><li><p>
+<tt class="literal">Switch_To_Address_Space()</tt> switches to a user
+address space by loading its page directory and (if necessary)
+its LDT.
+</p></li></ul></div></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project4_extracredit"></a>8. Extra Credit</h2></div></div><div></div></div><p>
+The implementation of virtual memory in GeekOS is a very simple one.
+There are many ways that it can be extended and improved.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project4_fastvictimselection"></a>8.1. Improving <tt class="literal">Find_Page_To_Page_Out()</tt></h3></div></div><div></div></div><p>
+When a page of pageable memory is required and no pages are available,
+the kernel uses the <tt class="literal">Find_Page_To_Page_Out()</tt> function
+(in <tt class="filename">src/geekos/mem.c</tt>) to select a page
+to page out.  While interrupts are disabled (meaning no other threads
+or interrupt handlers can run), this function traverses the array
+of all <tt class="literal">Page</tt> data structures, in order to find the
+one with the oldest clock field.
+</p><p>
+How can you make this function work more efficiently?
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project4_userheap"></a>8.2. Adding a User Heap</h3></div></div><div></div></div><p>
+Currently, the GeekOS kernel only creates a code segment, data segment,
+and stack for user processes.  However, it does not create a user
+heap, meaning that user processes cannot allocate memory dynamically
+(using a function like <tt class="literal">malloc()</tt>).
+</p><p>
+In order to add support for user heaps to GeekOS, you will need
+to do several things:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+The kernel will need to inform the <tt class="function">_Entry()</tt>
+function in the C library (<tt class="filename">src/libc/entry.c</tt>)
+of the start address and maximum size of the heap area.
+You may also wish to allow user processes to request that the
+heap be extended (similar to the <tt class="function">brk()</tt>
+system call in Unix and Linux).  In any case, <tt class="function">_Entry()</tt>
+will need to initialize the heap area.
+</p></li><li><p>
+The C library will need to implement functions to allocate and free
+memory.  You can copy the file <tt class="filename">src/geekos/bget.c</tt>
+into the C library, and use the functions <tt class="function">bpool()</tt>,
+<tt class="function">bget()</tt>, and <tt class="function">brel()</tt>
+to initialize the heap, allocate memory, and free memory, respectively.
+To add new source files to the C library,  put them
+in the <tt class="filename">src/libc</tt> directory and add them to
+the definition of the <tt class="varname">LIBC_C_SRCS</tt> macro
+in <tt class="filename">build/Makefile</tt>.
+</p></li><li><p>
+The page fault handler will need to dynamically allocate pages
+for memory accesses that occur in the heap area, in much the same
+way as it allows the stack to grow dynamically.
+</p></li></ul></div><p>
+</p></div></div><div class="footnotes"><br><hr width="100" align="left"><div class="footnote"><tt class="literal"><sup>[<a name="ftn.id2975026" href="#id2975026">3</a>] </sup>User_Context</tt><tt class="literal">Allocate_Segment_Descriptor()</tt><span class="emphasis"><em>before any user process is created</em></span></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="schedulingproject.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="fsproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 8. Project 3: Scheduling </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 10. Project 5: A Filesystem</td></tr></table></div></body></html>

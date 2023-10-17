@@ -1,0 +1,136 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 8. Project 3: Scheduling</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="usermodeproject.html" title="Chapter 7. Project 2: Adding Processes"><link rel="next" href="vmproject.html" title="Chapter 9. Project 4: Virtual Memory"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 8. Project 3: Scheduling</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="usermodeproject.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="vmproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="schedulingproject"></a>Chapter 8. Project 3: Scheduling</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="schedulingproject.html#project3_intro">1. Introduction</a></span></dt><dt><span class="sect1"><a href="schedulingproject.html#project3_multilevel">2. Multilevel Feedback Scheduling</a></span></dt><dt><span class="sect1"><a href="schedulingproject.html#project3_semaphores">3. Semaphores</a></span></dt><dt><span class="sect1"><a href="schedulingproject.html#project3_timing">4. Timing</a></span></dt><dt><span class="sect1"><a href="schedulingproject.html#project3_evaluation">5. Evaluating the Scheduling Policies</a></span></dt></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project3_intro"></a>1. Introduction</h2></div></div><div></div></div><p>
+The purpose of this project is to explore scheduling algorithms and learn about
+inter-process synchronization via semaphores.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project3_multilevel"></a>2. Multilevel Feedback Scheduling</h2></div></div><div></div></div><p>
+There are many scheduling algorithms. In this project, you will augment
+the existing GeekOS  Round-Robin scheduling algorithm with a multilevel
+feedback scheduler. In  Round-Robin, all threads (really their
+<tt class="literal">Kernel_Thread</tt> structures) sit in a FIFO queue.
+In a multi-level feedback scheduler,
+you will use 4 queues instead of 1. Each queue is assigned a priority
+level. The queues will be numbered 0 through 3, with 0 being the highest
+priority, and 3 being the lowest. This will require changing <tt class="literal">s_runQueue</tt>
+(in <tt class="filename">src/geekos/kthread.c</tt>)
+from being a struct to being an array of structs; one for each priority
+level.
+</p><p>
+A newly created process's <tt class="literal">Kernel_Thread</tt> structure
+will be placed on the ready queue of
+highest priority (i.e., 0). If the process runs for the full quantum,
+then it will be placed on the next lowest priority (1, if the process
+was new). Each time a process completes a full quantum, it will be
+placed on the ready queue with the next lowest priority until it is at
+priority 3, at which point it can not go any lower. Hence, CPU intensive
+processes will be eventually placed on the lowest priority queue. If the
+process is blocked, the priority level will increase by one level until
+after blocking three quanta in a row it will be back to priority 0. To
+schedule a new <tt class="literal">Kernel_Thread</tt> to run, look at the head of the highest priority
+queue. If there is a <tt class="literal">Kernel_Thread</tt> there, place it on the run queue. If not, go
+to the next lowest priority queue, and keep repeating until you find a
+<tt class="literal">Kernel_Thread</tt>. Scheduling always attempts to look at the highest priority queue
+and work down. This may mean low priority processes are starved.
+</p><p>
+The choice of which scheduler to use should be made within the function
+<tt class="literal">Get_Next_Runnable()</tt>. Any function that calls the <tt class="literal">Get_Next_Runnable()</tt>
+should
+be unaware which scheduling algorithm is being used (i.e., do not pass
+the scheduling type as an argument). It should only be aware that some
+<tt class="literal">Kernel_Thread</tt> has been selected.
+</p><p>
+You will need to handle the case of the Idle thread specially.  It should
+be placed in the lowest level of scheduling priority and should never
+be permitted to move out of that level.
+</p><p>
+Your operating system should be able to switch which scheduling
+algorithm is being used via a system call.
+The system call int
+To make the scheduling policy configurable, you should implement
+the <tt class="literal">Sys_SetSchedulingPolicy()</tt> system call
+in <tt class="filename">src/geekos/syscall.c</tt>.
+This system call will take two parameters, <i class="parameter"><tt>policy</tt></i>
+(passed in <tt class="literal">state-&gt;ebx</tt>) and <i class="parameter"><tt>quantum</tt></i>
+(passed in <tt class="literal">state-&gt;ecx</tt>).  If
+the value of policy is 0, the system should switch to round robin
+scheduling, if the policy is 1, the system should switch to multi-level
+feedback. Other values of this parameter should result in an error code
+being returned (i.e. a non-zero return value). The value of the quantum
+parameter should be the number of ticks that a user process may run before
+getting removed from the processor. To implement the tunable quantum, you
+should change the constant <tt class="literal">MAX_TICKS</tt> in timer.c to be a global variable
+(whose default value is <tt class="literal">MAX_TICKS</tt>) that is set by this system call.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project3_semaphores"></a>3. Semaphores</h2></div></div><div></div></div><p>
+You will add the following system calls to your kernel (all defined in
+<tt class="filename">src/geekos/syscall.c</tt>):
+</p><div class="itemizedlist"><ul type="disc"><li><tt class="literal">Sys_CreateSemaphore()</tt></li><li><tt class="literal">Sys_P()</tt></li><li><tt class="literal">Sys_V()</tt></li><li><tt class="literal">Sys_DestroySemaphore()</tt></li></ul></div><p>
+</p><p>
+<tt class="literal">Sys_CreateSemaphore()</tt> creates a semaphore.  The
+user address and length of the string containing the semaphore name
+are stored in <tt class="literal">state-&gt;ebx</tt> and <tt class="literal">state-&gt;ecx</tt>,
+respectively.   It will get back a semaphore ID, an integer between 0 and N-1.
+You should be able to handle at least 20 semaphores whose names may be up to
+25 characters long. If there are no semaphores left
+(i.e., there were 20 semaphores with unique names already given),
+a negative number can be returned indicating an error.
+If the name corresponds to a semaphore that already exists,
+your function should return its ID.  Otherwise, it should create a new
+semaphore, using the value in <tt class="literal">state-&gt;edx</tt> as the
+initial count value for the semaphore.
+In either case, you should add semaphore id (SID) to the list of semaphores the
+current process can use, as well increment the count of registered users
+which are permitted to use the semaphore.
+</p><p>
+The <tt class="literal">P()</tt> and <tt class="literal">V()</tt> operations
+acquire and release the semaphore, respectively.  <tt class="literal">P()</tt>
+waits until the semaphore's count is greater than 0, decrements the
+count by 1, and then proceeds.  <tt class="literal">V()</tt> increments
+the semaphore count by 1, and should wake up a thread that is waiting
+to acquire the semaphore, if any.
+When <tt class="literal">Sys_P()</tt> and <tt class="literal">Sys_V()</tt> are called,
+the kernel will check if the process has permission to make this call.
+It will do so by checking if the process has the SID in its list of SIDs
+that it can access (which is why you needed to create such a list).
+If it is there, it will be allowed to execute <tt class="literal">P()</tt> or
+<tt class="literal">V()</tt>.  If not, the kernel should return back a negative value.
+</p><p>
+<tt class="literal">Sys_DestroySemaphore()</tt> will delete the passed semaphore.
+It will keep track of how many processes have references to this semaphore,
+and delete the semaphore from the table when the last process that can access
+this semaphore calls <tt class="literal">Destroy_Semaphore()</tt>.  Note that you
+should ensure that when processes exit, they release their references to
+any semaphores they have access to, even if they don't explicitly call
+<tt class="literal">Destroy_Semaphore()</tt>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project3_timing"></a>4. Timing</h2></div></div><div></div></div><p>
+One way to compare scheduling algorithms is to see how long it takes a
+process to complete from the time of creation to the termination of the
+process. You will investigate these differences by implementing a system
+call, <tt class="literal">Sys_GetTimeOfDay()</tt>.
+</p><p>
+<tt class="literal">Sys_GetTimeOfDay()</tt> will return the value of the kernel global variable
+<tt class="literal">g_numTicks</tt>. The variable is already implemented in the kernel, so you only
+need to implement the system call to read it. You can use this system
+call to determine how much time has elapsed between two events. You can
+do this by calling <tt class="literal">Get_Time_Of_Day()</tt> once at the beginning of the process
+(in the user code) and once at the end. You can calculate how long the
+process took to run, as well as when the process first got scheduled
+(based on ticks). Notice that there is no attempt to remove time spent
+by other processes. For example, if your process context switches out,
+then runs a second process, the second process's time during
+the context switch will be included in the first process's total
+time. This is known as "wall clock" time. One can also just calculate
+the time used by the process itself.  This time is called process time
+(or sometimes virtual time). GeekOS currently calculates this time,
+but you do not need to use this information in this project.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project3_evaluation"></a>5. Evaluating the Scheduling Policies</h2></div></div><div></div></div><p>
+You should run several tests on the supplied application <tt class="filename">workload.exe</tt>,
+varying the quantum length as well as the two scheduling algorithms. At
+minimum try running the system with the inputs of:
+</p><pre class="screen">
+<span><b class="command">/c/workload.exe rr 1</b></span>
+<span><b class="command">/c/workload.exe rr 100</b></span>
+<span><b class="command">/c/workload.exe mlf 1</b></span>
+<span><b class="command">/c/workload.exe mlf 100</b></span>
+</pre><p>
+You should investigate and be able to explain why the results occurred.
+The exercise is meant to let you consider the effects of quantum length
+and scheduling algorithms on the run of several processes.
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="usermodeproject.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="vmproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 7. Project 2: Adding Processes </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 9. Project 4: Virtual Memory</td></tr></table></div></body></html>

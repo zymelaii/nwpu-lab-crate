@@ -1,0 +1,55 @@
+#! /usr/bin/perl
+
+# From a binary image containing a user program, generate
+# C code initializing a User_Program struct.
+
+# $Revision: 1.1 $
+
+use strict qw(refs vars);
+use FileHandle;
+
+if ( scalar(@ARGV) != 3 ) {
+    print STDERR "usage: mkuprog <filename> <progname> <entry addr>\n";
+    exit 1;
+}
+
+my $filename = shift @ARGV;
+my $progname = shift @ARGV;
+my $entryAddr = shift @ARGV;
+
+my $fh = new FileHandle("<$filename");
+(defined $fh) || die "Couldn't open $filename: $!\n";
+binmode $fh;
+
+my $dataArrayName = $progname . "Data";
+my $structName = $progname . "Prog";
+print "const unsigned char $dataArrayName"."[] = {\n";
+
+my $LINEWIDTH = 10;
+
+my $buf = chr(0) x $LINEWIDTH;
+my $n;
+my $size = 0;
+while ( ($n = read( $fh, $buf, $LINEWIDTH )) > 0 ) {
+    $size += $n;
+    my $i;
+    print "    ";
+    for ( $i = 0; $i < $n; $i++ ) {
+	my $c = ord( substr($buf, $i, 1) );
+	printf( "0x%x,", $c );
+    }
+    print "\n";
+}
+
+print "};\n";
+
+$fh->close();
+
+print << "END";
+const struct User_Program $structName = {
+    "$progname",
+    $size,
+    $entryAddr,
+    $dataArrayName
+};
+END

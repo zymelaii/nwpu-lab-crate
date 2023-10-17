@@ -1,0 +1,25 @@
+#! /usr/bin/perl
+
+# Build a binary image containing a pseudo fat filesystem with the listed files
+
+# $Revision: 1.1 $
+use FileHandle; 
+
+if ( scalar(@ARGV) < 2 ) {
+    print STDERR "usage: mkuprog <diskImage> <filenames>\n";
+    exit 1;
+}
+
+
+$filename = shift @ARGV;
+$filecount = scalar ( @ARGV );
+
+$fh = new FileHandle(">$filename");
+
+write
+
+while (scalar(@ARGV)) {
+    $filename = shift @ARGV;
+
+    print  "got file ", $filename, "\n";
+}

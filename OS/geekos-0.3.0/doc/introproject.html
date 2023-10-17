@@ -1,0 +1,22 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 5. Project 0: Getting Started</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="projectoverview.html" title="Chapter 4. Overview of the Projects"><link rel="next" href="elfparsingproject.html" title="Chapter 6. Project 1: Loading Executable Files"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 5. Project 0: Getting Started</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="projectoverview.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="elfparsingproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="introproject"></a>Chapter 5. Project 0: Getting Started</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="introproject.html#project0_assignment">1. The Assignment</a></span></dt><dt><span class="sect1"><a href="introproject.html#project0_hints">2. Hints</a></span></dt></dl></div><p>
+The purpose of this project is to introduce you to working with
+the GeekOS source code and running GeekOS in the Bochs emulator.
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project0_assignment"></a>1. The Assignment</h2></div></div><div></div></div><p>
+Add code to the kernel to create a new kernel mode thread.
+The kernel mode thread should print out "Hello from xxx" where xxx is your
+name.  It should then call the keyboard input routine <tt class="literal">Wait_For_Key()</tt> repeatly
+(and echo each character entered) until the termination character
+(control-d) is entered.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project0_hints"></a>2. Hints</h2></div></div><div></div></div><p>
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+   This project will not require much code to be written.
+   However, it may take some time to get things set up and debugged.
+    </p></li><li><p>
+    Execution of the GeekOS kernel begins in the <tt class="literal">Main()</tt>
+    function in the source file <tt class="filename">src/geekos/main.c</tt>.
+    </p></li><li><p>
+    To start a new kernel mode thread you use the
+    <tt class="literal">Start_Kernel_Thread()</tt> function.  Look at the comments
+    before the definition of this function in <tt class="filename">src/geekos/kthread.c</tt>.
+    </p></li></ul></div><p>
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="projectoverview.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="elfparsingproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 4. Overview of the Projects </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 6. Project 1: Loading Executable Files</td></tr></table></div></body></html>

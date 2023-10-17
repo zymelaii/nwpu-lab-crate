@@ -1,0 +1,199 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 7. Project 2: Adding Processes</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="elfparsingproject.html" title="Chapter 6. Project 1: Loading Executable Files"><link rel="next" href="schedulingproject.html" title="Chapter 8. Project 3: Scheduling"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 7. Project 2: Adding Processes</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="elfparsingproject.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="schedulingproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="usermodeproject"></a>Chapter 7. Project 2: Adding Processes</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="usermodeproject.html#project2_intro">1. Introduction</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_requiredreading">2. Required Reading</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_synopsis">3. Project Synopsis</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_usingsegmentation">4. Using Segmentation</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_exeloading">5. Loading the Executable</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_memoryspace">6. Setting up the Process Memory</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_threadcreation">7. User Thread Creation</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_systemcalls">8. Adding System Calls</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_spawninit">9. Spawning the Init Process</a></span></dt><dt><span class="sect1"><a href="usermodeproject.html#project2_testing">10. Testing Your Project</a></span></dt></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_intro"></a>1. Introduction</h2></div></div><div></div></div><p>
+In this project you will extend the GeekOS operating system to include
+user mode processes and system calls.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_requiredreading"></a>2. Required Reading</h2></div></div><div></div></div><p>
+This project will make extensive use of systems programming features of
+the x86 (a.k.a. IA32) CPU architecture.  It will also require you to understand
+the ELF executable format.
+</p><p>
+The Intel IA32 Architecture Manuals are the definitive reference for
+programming x86 CPUs.  You can find them at the
+<a href="http://www.intel.com/" target="_top">Intel website</a>; the order
+numbers for the set are 253665 (Volume 1, Basic Architecture),
+253666 and 253667 (Volumes 2A and 2B, Instruction Set Reference),
+and 253668 (Volume 3, System Programming Guide).  For this project,
+you will need to understand <span class="emphasis"><em>segments</em></span> and
+<span class="emphasis"><em>local descriptor tables</em></span>.  These are described in
+Volume 3.   You will want to read Volume 3, Chapter 3 carefully
+to understand how segments work.
+</p><p>
+You might need to revise some information in 
+<a href="http://www.x86.org/ftp/manuals/tools/elf.pdf" target="_top">ELF Executable Format</a>
+documentation, since you'll reuse ELF parsing from <a href="elfparsingproject.html" title="Chapter 6. Project 1: Loading Executable Files">Chapter 6, <i>Project 1: Loading Executable Files</i></a>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_synopsis"></a>3. Project Synopsis</h2></div></div><div></div></div><p>
+This project will require you to make changes to several files.
+In general, look for the calls to the <tt class="literal">TODO()</tt> macro.
+These are places where you will need to add code, and they
+will generally contain a comment giving you some hints on how
+to proceed.
+</p><p>
+In <tt class="filename">src/geekos/user.c</tt>, you will implement the functions
+<tt class="literal">Spawn()</tt>, which starts a new user process, and
+<tt class="literal">Switch_To_User_Context()</tt>, which is called by the
+scheduler before executing a thread in order to switch user address spaces
+if required.
+</p><p>
+In <tt class="filename">src/geekos/elf.c</tt>, you will implement the
+<tt class="literal">Parse_ELF_Executable()</tt> function.  This involves
+reading the program headers of an ELF executable to find the
+file offset, length, and user address for the executable's
+text and data segments.  Based on this information, you should
+fill in the <tt class="literal">Exe_Format</tt> data structure passed
+as a parameter.  This data structure will be used by the <tt class="literal">Spawn()</tt>
+function to determine how to load the executable.
+</p><p>
+In <tt class="filename">src/geekos/userseg.c</tt>, you will implement functions
+which provide support for the high level operations in <tt class="filename">src/geekos/user.c</tt>.
+<tt class="literal">Destroy_User_Context()</tt> frees the memory resources used
+by a user process.  <tt class="literal">Load_User_Program()</tt> builds the
+<tt class="literal">User_Context</tt> structure for a new process by loading parts
+of the executable program into memory.  The <tt class="literal">Copy_From_User()</tt>
+and <tt class="literal">Copy_To_User()</tt> functions copy data between the
+user address space and the kernel address space.  The <tt class="literal">Switch_To_Address_Space()</tt>
+function activates a user address space by loading the processor's LDT register
+with the LDT of a process.
+</p><p>
+In <tt class="filename">src/geekos/kthread.c</tt>, you will implement functions
+which take a completed <tt class="literal">User_Context</tt> data structure
+and create a thread which is ready to execute in user mode.
+The <tt class="literal">Setup_User_Thread()</tt> function sets up the initial
+kernel stack for the process, which specifies the initial contents
+of the processor registers when the process enters user mode for the
+first time.  <tt class="literal">Start_User_Thread()</tt> is a higher level
+operation which takes a <tt class="literal">User_Context</tt> object and uses
+it to start the new process.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_usingsegmentation"></a>4. Using Segmentation</h2></div></div><div></div></div><p>
+To implement memory protection for user processes, this project uses
+<span class="emphasis"><em>segmentation</em></span>.  With segmentation, each process
+resides in a single physically contiguous chunk of memory.
+You can allocate this chunk of memory using the <tt class="filename">Malloc()</tt>
+function.
+</p><p>
+In order to provide a private address space, you will need to create
+<span class="emphasis"><em>segments</em></span> for code and data of the process.
+Both segments will refer to the single memory chunk you have
+allocated for the process.  The segments will reside in the
+<span class="emphasis"><em>local descriptor table</em></span> (LDT) that you will
+create for the process.  In the LDT, you will define <span class="emphasis"><em>segment descriptors</em></span>
+that define the process code and data segments.  Both of these should
+be created at the user privilege level: this will have the effect of
+that the process will only be able to access the memory in the
+segments you define in the LDT.
+</p><p>
+Here is a general list of steps you will need to follow in order
+to set up the segments and LDT for a process:
+</p><div class="orderedlist"><ol type="1"><li><p> Create an LDT descriptor by calling the routine <tt class="literal">Allocate_Segment_Descriptor()</tt> </p></li><li><p> Create an LDT selector by calling the routine <tt class="literal">Selector()</tt> </p></li><li><p> Create a text segment descriptor by calling <tt class="literal">Init_Code_Segment_Descriptor()</tt> </p></li><li><p> Create a data segment descriptor by calling <tt class="literal">Init_Data_Segment_Descriptor()</tt> </p></li><li><p> Create an data segment selector by calling the routine <tt class="literal">Selector()</tt> </p></li><li><p> Create an text segment selector by calling the routine <tt class="literal">Selector()</tt> </p></li></ol></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_exeloading"></a>5. Loading the Executable</h2></div></div><div></div></div><p>
+GeekOS, like other operating systems, uses files to store executable programs.
+These files are in ELF format.  We have provided you with a simple read-only
+filesystem for this project, which contains several programs that you can
+use to test user mode.  To simplify the process of loading an executable,
+you will simply load the executable into a single buffer in the kernel.
+To do this, you can use the function <tt class="literal">Read_Fully()</tt>,
+whose prototype is in <tt class="filename">&lt;geekos/vfs.h&gt;</tt>.
+Here is an example of how you would read the executable <tt class="filename">/c/shell.exe</tt>
+into a kernel buffer:
+</p><pre class="programlisting">
+int rc;
+void *buf;
+ulong_t fileLen;
+
+rc = Read_Fully("/c/shell.exe", &amp;buf, &amp;fileLen);
+if (rc == 0) {
+    /*
+     * Read the file successfully!
+     * buf points to a Malloc'ed buffer containing the file data,
+     * and fileLen contains the length of the file.
+     */
+    ...
+}
+</pre><p>
+</p><p>
+Loading ELF executables is fairly straightforward.  You will need to
+locate the ELF program headers.  These headers will describe the executable's
+<span class="emphasis"><em>text</em></span> and <span class="emphasis"><em>data</em></span> segments.
+<sup>[<a name="id2975532" href="#ftn.id2975532">2</a>]</sup>
+As you parse the ELF executable, you will fill in the fields of
+an <tt class="literal">Exe_Format</tt> data structure, which is a high level
+representation of how to load data from the executable file into
+memory.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_memoryspace"></a>6. Setting up the Process Memory</h2></div></div><div></div></div><p>
+Besides loading the executable's text and data segments into memory,
+you will also need to create two other data structures in the
+process's memory space.
+</p><p>
+You will need to create a <span class="emphasis"><em>stack</em></span> for the new process.
+The stack will reside at the top of the user address space.
+You can use the <tt class="literal">DEFAULT_USER_STACK_SIZE</tt> macro in
+<tt class="filename">src/geekos/userseg.c</tt> as the stack size.
+</p><p>
+You will also need to create an <span class="emphasis"><em>argument block</em></span> data
+structure.  This data structure creates the <tt class="literal">argc</tt> and
+<tt class="literal">argv</tt> arguments that are passed to the <tt class="literal">main()</tt>
+function of the user process.
+Two functions are defined to help you build the
+argument block (prototypes in <tt class="filename">&lt;geekos/argblock.h&gt;</tt>).
+<tt class="literal">Get_Argument_Block_Size()</tt> takes the <span class="emphasis"><em>command string</em></span>
+passed to the <tt class="literal">Spawn()</tt> function and determines how many
+command line arguments there will be, and how many
+bytes are required to store the argument block.
+The <tt class="literal">Format_Argument_Block()</tt>
+function takes the number of arguments and argument block size from <tt class="literal">Get_Argument_Block_Size()</tt>
+and builds the argument block data structure in the memory location you have
+allocated for it.
+</p><p>
+Note that you will need to take the size of the stack and argument block
+into account when you decide how much memory to allocate for the
+process.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_threadcreation"></a>7. User Thread Creation</h2></div></div><div></div></div><p>
+As described in <a href="usermodeproject.html#project2_synopsis" title="3. Project Synopsis">Section 3, &#8220;Project Synopsis&#8221;</a>, you will need to
+create a thread for the new process.
+You will need to set up the
+stack of your new thread to look like it has just been interrupted. This
+will require pushing the appropriate values onto the stack to match what
+the hardware would push for an interrupt. The routine <tt class="literal">Push()</tt>
+(<tt class="filename">src/geekos/kthread.c</tt>) can
+be used to push individual values onto the stack.
+The required values should be pushed onto the stack as follows:
+</p><div class="itemizedlist"><ul type="disc"><li><p>Stack Data selector (data selector)</p></li><li><p>Stack Pointer (end of data memory)</p></li><li><p>Eflags (IF bit should be set so interrupts are enabled)</p></li><li><p>Text selector (text selector)</p></li><li><p>Program Counter (code entry point address)</p></li><li><p>Error Code (0) </p></li><li><p>Interrupt Number (0)</p></li><li><p>General Purpose Registers (esi should contain address of argument block)</p></li><li><p>DS register (data selector)</p></li><li><p>ES register (data selector)</p></li><li><p>FS register (data selector)</p></li><li><p>GS register (data selector)</p></li></ul></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_systemcalls"></a>8. Adding System Calls</h2></div></div><div></div></div><p>
+System calls are software interrupts made by processes in order to
+request services from the kernel.  In GeekOS, the kernel handlers for
+system calls are implemented in the file <tt class="filename">src/geekos/syscall.c</tt>.
+Each system call you must implement is described in this file.
+</p><p>
+Some of the system calls require you to copy data between the
+kernel address space and the current process's user address space.
+This task is carried out by the <tt class="literal">Copy_From_User()</tt>
+and <tt class="literal">Copy_To_User()</tt> functions whose prototypes are in
+the header file <tt class="filename">include/geekos/user.h</tt>, and whose
+implementations are in the file <tt class="filename">src/geekos/userseg.c</tt>.
+You will need to implement these functions.  With segmentation,
+this is a fairly easy task; once you have verified that the
+user buffer is valid (i.e., it lies entirely within memory belonging
+to the process), a call to <tt class="literal">memcpy()</tt> can be used
+to do the transfer.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_spawninit"></a>9. Spawning the Init Process</h2></div></div><div></div></div><p>
+When GeekOS boots up, it should start the user mode process in the file
+<tt class="filename">/c/shell.exe</tt>.  This process is the ancestor of all
+other user mode processes in the operating system.
+You will need to add the code to start this process and wait
+for it to exit.
+See the function <tt class="literal">Spawn_Init_Process()</tt>
+in <tt class="filename">src/geekos/main.c</tt>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project2_testing"></a>10. Testing Your Project</h2></div></div><div></div></div><p>
+We have provided several user mode programs with which you can test
+your project.  <tt class="filename">shell.exe</tt> is a simple command interpreter
+program.  It is available on a PFAT filesystem from within GeekOS
+at the path <tt class="filename">/c/shell.exe</tt>.  It should be the first
+user program loaded by your kernel; for this reason, it is referred to
+as the <span class="emphasis"><em>init process</em></span>.  Once you have successfully
+implemented <tt class="literal">Spawn()</tt> and its support routines, and
+implemented all of the required system call handlers, GeekOS should
+boot into a familiar command prompt.
+</p><p>
+Once the init process loads, you can use it to test some other small
+user mode programs.  <tt class="filename">/c/b.exe</tt> prints a message, echoes
+its command line arguments, and exits.  <tt class="filename">/c/c.exe</tt>
+executes an illegal system call.  It will be killed by the kernel.
+</p></div><div class="footnotes"><br><hr width="100" align="left"><div class="footnote"></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="elfparsingproject.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="schedulingproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 6. Project 1: Loading Executable Files </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 8. Project 3: Scheduling</td></tr></table></div></body></html>

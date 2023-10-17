@@ -1,0 +1,107 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 2. Kernel Hacking 101</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="intro.html" title="Chapter 1. Introduction"><link rel="next" href="overview.html" title="Chapter 3. Overview of GeekOS"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 2. Kernel Hacking 101</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="intro.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="overview.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="hacking101"></a>Chapter 2. Kernel Hacking 101</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="hacking101.html#id2909282">1. Kernel Mode Restrictions</a></span></dt><dd><dl><dt><span class="sect2"><a href="hacking101.html#nolibrary">1.1. Limited Set of Library Functions</a></span></dt><dt><span class="sect2"><a href="hacking101.html#limitedstack">1.2. Limited Stack</a></span></dt><dt><span class="sect2"><a href="hacking101.html#nomemprot">1.3. Limited Memory Protection</a></span></dt><dt><span class="sect2"><a href="hacking101.html#asyncint">1.4. Asynchronous Interrupts</a></span></dt></dl></dd><dt><span class="sect1"><a href="hacking101.html#practices">2. Recommended Kernel Hacking Practices</a></span></dt><dd><dl><dt><span class="sect2"><a href="hacking101.html#assertions">2.1. Use Assertions</a></span></dt><dt><span class="sect2"><a href="hacking101.html#printstatements">2.2. Use Print Statements</a></span></dt><dt><span class="sect2"><a href="hacking101.html#testearly">2.3. Test Early and Often</a></span></dt></dl></dd></dl></div><p>
+GeekOS is an operating system <span class="emphasis"><em>kernel</em></span>. In many
+respects, it is simply a C program.  It has functions, threads,
+a memory allocator, and so forth.  However, unlike a C program executing
+as a <span class="emphasis"><em>user mode</em></span> process of a host operating system
+such as Linux or Windows, a kernel operates in <span class="emphasis"><em>kernel mode</em></span>.
+A program executing in kernel mode has total control over the computer's
+CPU, memory, and hardware devices.
+</p><p>
+Writing code to execute in kernel mode presents a few challenges
+that you will need to be aware of.  This chapter presents some
+important tips and techniques that you will need to use as you
+modify the GeekOS kernel.
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="id2909282"></a>1. Kernel Mode Restrictions</h2></div></div><div></div></div><p>
+The runtime environment of the GeekOS kernel has several important
+restrictions you will need to be aware of.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="nolibrary"></a>1.1. Limited Set of Library Functions</h3></div></div><div></div></div><p>
+Because the operating system is that lowest level of software in the
+computer, all functionality used by the kernel must be implemented
+within the kernel.  This is different than for user programs,
+which are generally linked against a set of standard libraries containing
+often-used functions.
+</p><p>
+The only standard C library functions available in GeekOS are a subset of
+the string functions (<tt class="literal">strcpy()</tt>, <tt class="literal">memcpy()</tt>,
+etc.) and the <tt class="literal">snprintf()</tt> function.  Prototypes for
+these functions are defined in the header <tt class="filename">&lt;geekos/string.h&gt;</tt>.
+</p><p>
+In addition to the standard C functions, the GeekOS kernel also contains
+functions which are similar to C library functions.  The <tt class="literal">Print()</tt>
+function (prototype in <tt class="filename">&lt;geekos/screen.h&gt;</tt>)
+is a subset of the standard C <tt class="literal">printf()</tt> function.
+The <tt class="literal">Malloc()</tt> and <tt class="literal">Free()</tt> functions
+(prototypes in <tt class="filename">&lt;geekos/malloc.h&gt;</tt>)
+are equivalent to the <tt class="literal">malloc()</tt> and <tt class="literal">free()</tt>
+functions.
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="limitedstack"></a>1.2. Limited Stack</h3></div></div><div></div></div><p>
+Each thread in the GeekOS kernel has a 4K stack.  If a thread overflows
+its stack, a kernel crash will generally be the result.  Therefore, you should
+be very careful to conserve stack space:
+</p><div class="itemizedlist"><ul type="disc"><li><p>Do not allocate large data structures on the stack.
+     Use the kernel heap allocator (<tt class="literal">Malloc()</tt> and
+     <tt class="literal">Free()</tt>) instead.</p></li><li><p>Do not use recursion.  Avoid deep call stacks.</p></li></ul></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="nomemprot"></a>1.3. Limited Memory Protection</h3></div></div><div></div></div><p>
+When the kernel starts executing there is no memory protection;
+every memory access made by the kernel is to real (physical) memory.
+Dereferences of null pointers are not trapped.  For this reason, kernel
+code is more vulnerable to stray pointer references than user code.
+You will need to check your code very carefully to make sure there are no
+memory errors, because they are hard to debug.
+</p><p>
+When you add virtual memory to GeekOS (<a href="vmproject.html" title="Chapter 9. Project 4: Virtual Memory">Chapter 9, <i>Project 4: Virtual Memory</i></a>),
+the kernel will gain a greater degree of protection for memory errors,
+but you will still need to be careful.
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="asyncint"></a>1.4. Asynchronous Interrupts</h3></div></div><div></div></div><p>
+Many hardware devices use <span class="emphasis"><em>interrupts</em></span> to notify
+the CPU of important events: the expiration of a timer, the completion
+of an I/O request, etc.  An interrupt is an immediate
+asynchronous transfer of control to an <span class="emphasis"><em>interrupt handler</em></span>.
+When the handler completes, control returns to the point where execution was interrupted,
+and the original code resumes.  Note that interrupt handlers may cause
+a <span class="emphasis"><em>thread context switch</em></span>, meaning that other threads
+may execute before control returns to the interrupted thread.
+</p><p>
+The practical implications of interrupts are described in <a href="overview.html#intsandthreads" title="2. Interrupts and Threads">Section 2, &#8220;Interrupts and Threads&#8221;</a>.
+You will want to read this section carefully.
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="practices"></a>2. Recommended Kernel Hacking Practices</h2></div></div><div></div></div><p>
+If you observe the precautions
+described in this document, you will find that programming in kernel
+mode is fairly straightforward.  However, to make your kernel hacking
+experience more pleasant, we strongly encourage you to adopt
+the following habits.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="assertions"></a>2.1. Use Assertions</h3></div></div><div></div></div><p>
+The header <tt class="filename">&lt;geekos/kassert.h&gt;</tt> defines the
+<tt class="literal">KASSERT()</tt> macro, which takes a boolean expression.  If the
+expression evaluates to false, the macro prints a message and
+halts the kernel.  Here is an example:
+
+</p><pre class="programlisting">
+void My_Function(struct Thread_Queue *queue)
+{
+    KASSERT(!Interrupts_Enabled()); /* Interrupts must be disabled */
+    KASSERT(queue != 0);            /* queue must not be null */
+    ...
+}
+</pre><p>
+
+As much as possible, you should rigorously use assertions to check
+function preconditions, postconditions, and data structure invariants.
+Assertions have two important benefits.  First, a failed assertion
+immediately and precisely pinpoints a bug in the code, often
+before the kernel state becomes seriously corrupted.  Second, assertions
+help document the code.
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="printstatements"></a>2.2. Use Print Statements</h3></div></div><div></div></div><p>
+The <tt class="filename">&lt;geekos/screen.h&gt;</tt> header defines the
+<tt class="literal">Print()</tt> function, which supports much of the functionality
+of the standard C <tt class="literal">printf()</tt> function.  Print statements
+are the most useful general technique for debugging kernel code.
+As with any debugging, you should adopt the strategy of forming a hypothesis
+and gathering evidence to support or refute the hypothesis.
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="testearly"></a>2.3. Test Early and Often</h3></div></div><div></div></div><p>
+To a much greater extent than for user programs, kernel code needs to be
+developed and tested in small pieces.  Whenever you reach a stable
+point in your kernel development, you should commit your work to version
+control.  We strongly recommend that you use <a href="http://www.cvshome.org/" target="_top">CVS</a>
+to store your code.
+</p></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="intro.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="overview.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 1. Introduction </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 3. Overview of GeekOS</td></tr></table></div></body></html>

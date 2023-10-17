@@ -1,0 +1,72 @@
+#! /usr/bin/perl
+
+# Remove empty conflicts following a diff3 merge.
+# TODO: return exit code indicating whether or not there
+# were any non-empty conflicts.
+
+use strict qw(refs vars);
+
+my @lines = ();
+my @chunk1 = ();
+my @chunk2 = ();
+my $state = 'scan';
+
+while (<>) {
+	if ($state eq 'scan') {
+		if (/^<<<<<<</) {
+			push @lines, $_;
+			$state = 'chunk1';
+		} else {
+			print;
+		}
+
+		next;
+	} elsif ($state eq 'chunk1') {
+		push @lines, $_;
+		if (/^=======/) {
+			$state = 'chunk2';
+			next;
+		} else {
+			push @chunk1, $_;
+		}
+		next;
+	} elsif ($state eq 'chunk2') {
+		push @lines, $_;
+		if (/^>>>>>>>/) {
+			if (scalar(@chunk1) == 0) {
+				Dump(@chunk2);
+			} elsif (scalar(@chunk2) == 0) {
+				Dump(@chunk1);
+			} else {
+				Dump(@lines);
+			}
+			Reset();
+		} else {
+			push @chunk2, $_;
+		}
+		next;
+	}
+
+	die;
+}
+Flush();
+
+sub Reset() {
+	@lines = ();
+	@chunk1 = ();
+	@chunk2 = ();
+	$state = 'scan';
+}
+
+sub Flush {
+	Dump(@lines);
+}
+
+sub Dump {
+	my @l = @_;
+	foreach my $line (@l) {
+		print $line;
+	}
+}
+
+# vim:ts=4

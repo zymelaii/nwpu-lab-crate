@@ -1,0 +1,29 @@
+#! /usr/bin/perl
+
+# Scan a file for a 32-bit word with a particular value.
+# $Revision: 1.1 $
+
+use strict qw(refs vars);
+use FileHandle;
+
+my $filename = shift @ARGV;
+my $word_value = shift @ARGV;
+
+((defined $filename) && (defined $word_value))
+    || die "Usage: scan <filename> <word value in hex>\n";
+
+my $fh = new FileHandle("<$filename");
+my $val = hex($word_value);
+
+my $buf = ' ' x 4;
+
+my $offset = 0;
+while ( read( $fh, $buf, 4) == 4 ) {
+    my $out = unpack "V", $buf;
+    if ( $out == $val ) {
+	print "Found value $word_value at offset $offset\n";
+	exit;
+    }
+    $offset += 4;
+}
+print "Didn't find value $word_value\n";

@@ -1,0 +1,23 @@
+#! /usr/bin/perl
+
+# Find the number of 512-byte sectors needed to store
+# given file.
+
+# $Revision: 1.1 $
+
+use strict qw(refs vars);
+
+if ( scalar(@ARGV) != 1 ) {
+    print STDERR "Usage: numsecs <filename>\n";
+    exit 1;
+}
+
+my $filename = shift @ARGV;
+my $size = (-s $filename );
+die "Couldn't get size of $filename: $!" if ( !defined $size );
+
+my $result = int($size / 512);
+my $remainder = $size % 512;
+$result++ if ( $remainder > 0 );
+
+print "$result\n";

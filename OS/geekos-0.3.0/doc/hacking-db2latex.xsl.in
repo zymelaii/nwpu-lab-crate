@@ -1,0 +1,12 @@
+<?xml version='1.0'?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version='1.0'>
+
+<!--
+    <xsl:import href="http://db2latex.sourceforge.net/xsl/docbook.xsl"/>
+-->
+
+<xsl:import href="@DB2LATEX_XSL_STYLESHEET@"/>
+
+<xsl:param name="latex.documentclass.book">letterpaper,10pt,twoside,openright</xsl:param>
+
+</xsl:stylesheet>
