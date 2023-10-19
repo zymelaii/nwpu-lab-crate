@@ -69,8 +69,10 @@ REG_SKIP equ (11*4)
 ; The argument is the interrupt number.
 %macro Int_With_Err 1
 align 8
-	push	dword %1	; push interrupt number
+	push	dword %1	 ; push interrupt number
 	jmp	Handle_Interrupt ; jump to common handler
+	nop
+	nop				 	 ; NOTE: align Int_With_Err to 16 bytes
 %endmacro
 
 ; Template for entry point code for interrupts that do not
@@ -240,8 +242,8 @@ Handle_Interrupt:
 ; Switch_To_Thread()
 ;   Save context of currently executing thread, and activate
 ;   the thread whose context object is passed as a parameter.
-; 
-; Parameter: 
+;
+; Parameter:
 ;   - ptr to Kernel_Thread whose state should be restored and made active
 ;
 ; Notes:

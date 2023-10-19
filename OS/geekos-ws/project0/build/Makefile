@@ -94,7 +94,7 @@ KERNEL_ENTRY = $(SYM_PFX)Main
 # ----------------------------------------------------------------------
 
 # Uncomment if cross compiling
-#TARGET_CC_PREFIX := i386-elf-
+TARGET_CC_PREFIX := i386-elf-
 
 # Target C compiler.  gcc 2.95.2 or later should work.
 TARGET_CC := $(TARGET_CC_PREFIX)gcc
@@ -146,7 +146,7 @@ NUMSECS := $(PERL) $(PROJECT_ROOT)/scripts/numsecs
 
 # Flags used for all C source files
 GENERAL_OPTS := -O -Wall $(EXTRA_C_OPTS)
-CC_GENERAL_OPTS := $(GENERAL_OPTS) -Werror
+CC_GENERAL_OPTS := $(GENERAL_OPTS) -O0 -fno-stack-protector
 
 # Flags used for kernel C source files
 CC_KERNEL_OPTS := -g -DGEEKOS -I$(PROJECT_ROOT)/include
@@ -194,6 +194,7 @@ all : $(ALL_TARGETS)
 # Standard floppy image - just boots the kernel
 fd.img : geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin
 	cat geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin > $@
+	truncate -s 1474560 $@
 
 # Floppy boot sector (first stage boot loader).
 geekos/fd_boot.bin : geekos/setup.bin geekos/kernel.bin $(PROJECT_ROOT)/src/geekos/fd_boot.asm
@@ -245,5 +246,8 @@ depend : $(GENERATED_LIBC_SRCS)
 # By default, there are no header file dependencies.
 depend.mak :
 	touch $@
+
+run: fd.img
+	qemu-system-i386 -boot a -fda $< -m 10M -display curses -m 10M
 
 include depend.mak
