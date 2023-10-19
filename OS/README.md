@@ -124,3 +124,191 @@ qemu-system-i386 -boot a -fda fd.img -m 10M -display curses -m 10M
 ```
 
 使用 `make run` 运行，完成实验。
+
+## 第壹次实验
+
+实验目的：了解中断控制
+
+实验内容：完成 geekos project0
+
+### 内容 1
+
+> 启动线程处理键盘按键消息的回显
+
+阅读 keyboard.h，了解 Keycode 的位结构，依据标志位信息利用小端序联合体将 Keycode 重写为 keycode_des_t 以便访问。
+
+```c
+typedef union keycode_des_s {
+    struct {
+        char code;
+
+        union {
+            struct {
+                char special  : 1;
+                char keypad   : 1;
+                char reserved : 2;
+                char shift    : 1;
+                char alt      : 1;
+                char ctrl     : 1;
+                char release  : 1;
+            } flags;
+
+            char raw_flags;
+        };
+    };
+
+    short raw_data;
+} keycode_des_t;
+```
+
+简单编写线程的 worker 回调，其中特判 `CTRL+d` 处理工作线程的结束，并使用控制字符变美化输出样式：
+
+> 为了更改输出文本样式，保险起见应该使用 geekos 给出的 Set_Current_Attr 实现，此处图方便直接使用控制字符。
+
+```c
+void cb_keyboard_echo(ulong_t arg) {
+    const int QUIT_KEYCODE = KEY_CTRL_FLAG | 'd';
+    Print("\e[32mStart keyboard echo service, press `CTRL+d` to quit the "
+          "server.\e[0m\n");
+
+    while (1) {
+        keycode_des_t key_des = {.raw_data = Wait_For_Key()};
+
+        int         color_code = key_des.flags.release ? 32 : 31;
+        const char* hint_text  = key_des.flags.release ? "RELEASE" : " PRESS ";
+        Print("\e[1;%dm[%s]\e[0m ", color_code, hint_text);
+
+        if (key_des.flags.ctrl) { Print("CTRL+"); }
+        if (key_des.flags.alt) { Print("ALT+"); }
+        if (key_des.flags.shift) { Print("SHIFT+"); }
+        if (key_des.flags.special && !key_des.flags.keypad) {
+            Print("%s", SPECIAL_KEY_STRTABLE[key_des.code]);
+        } else if (key_des.flags.keypad) {
+            Print("%s", KEYPAD_KEY_STRTABLE[key_des.code & 0x7f]);
+        } else if (key_des.code > 0x20 && key_des.code < 0x7f) {
+            Print("%#c", key_des.code);
+        } else if (key_des.code == ' ') {
+            Print("SPACE");
+        } else if (key_des.code == '\t') {
+            Print("TAB");
+        } else if (key_des.code == '\r') {
+            Print("RETURN");
+        } else if (key_des.code == ASCII_BS) {
+            Print("BACKSPACE");
+        } else if (key_des.code == ASCII_ESC) {
+            Print("ESCAPE");
+        } else {
+            Print("%#hhx", key_des.code);
+        }
+        Print("\n");
+
+        if (key_des.raw_data == QUIT_KEYCODE) { break; }
+    }
+
+    Print("\e[32mKeyboard echo service safely quited .\e[0m\n");
+}
+```
+
+其中部分 unprintable char 使用查表法替换按键名称。
+
+最后使用 Start_Kernel_Thread 以一般优先级添加工作线程并立即非阻塞加入：
+
+```c
+Start_Kernel_Thread(cb_keyboard_echo, 0, PRIORITY_NORMAL, 1);
+```
+
+### 内容 2
+
+> 启动多个输出线程处理键盘按键消息的回显
+
+如下，打印数字及当前线程 pid，待打印的数字在创建线程时作为参数传入。
+
+使用 PAUSE 空循环消耗 CPU 时间实现延时的作用，防止输出刷屏。
+
+```c
+void cb_stable_print(ulong_t arg) {
+    struct Kernel_Thread* self = Get_Current();
+    while (1) {
+        Print("msg `%d` from thread [pid=%d]\n", arg, self->pid);
+        PAUSE(5e8);
+    }
+}
+```
+
+### 内容 3
+
+> 实现更有意思的线程函数
+
+实现一个简易命令行，在 dev mode 下激活。
+
+用一个单写多读的全局原子量 ATOMIC_FLAG 平替线程锁的功能，多线程逻辑如下：
+
+1. ATOMIC_FLAG 无效时，dev 忙等。
+2. ATOMIC_FLAG 有效时，keyboard echo 与 stable print 忙等。
+3. keyboard echo 线程监听到 `CTRL+p` 后原子写 ATOMIC_FLAG 使有效。
+4. ATOMIC_FLAG 有效时进入 dev 事务逻辑，处理命令键入与命令执行。
+
+dev 线程事务逻辑如下：
+
+1. ATOMIC_FLAG 无效时忙等。
+2. ATOMIC_FLAG 有效时处理事务，阻塞其它线程。
+3. 命令键入阶段，循环读定长内的可打印字符；遇到 '\b' 缓冲区退格并 flush 打印；遇到 '\r' 结束命令键入；读入字符数达上限结束命令键入并抛出警告。
+4. 命令执行阶段，字符串全串匹配分发到各命令处理方法；对于 quit 命令，原子写 ATOMIC_FLAG 使无效；完成命令执行进入下一趟事务处理。
+
+工作回调基本结构如下：
+
+```c
+void cb_dev_handler(ulong_t arg) {
+    while (1) {
+        if (ATOMIC_FLAG == 0) { continue; }
+        char cmdbuf[32] = {}, ch = 0;
+        while (1) {
+            char* p = cmdbuf;
+            Print("(dev)> ");
+            do {
+                ch = get_printable_char();
+                if (ch == '\r') { break; }
+                if (ch == '\b') {
+                    if (p == cmdbuf) { continue; }
+                    *--p = '\0';
+                    Print(" (flush)\n(dev)> %s", cmdbuf);
+                } else {
+                    Print("%c", ch);
+                    *p++ = ch;
+                }
+            } while (p - cmdbuf < 31);
+            Print("\n");
+            if (ch != '\r') { Print("(warning) cmd is too long\n"); }
+            *p = '\0';
+            if (strcmp(cmdbuf, "version") == 0) {
+                // 打印版本信息
+            } else if (strcmp(cmdbuf, "help") == 0) {
+                // 打印帮助信息
+            } else if (strcmp(cmdbuf, "info thread") == 0) {
+                // 打印当前线程信息
+            } else if (strcmp(cmdbuf, "quit") == 0) {
+                break;
+            } else if (strlen(cmdbuf) != 0) {
+                // 抛出未知命令错误
+            }
+        }
+        ATOMIC_FLAG = 0;
+    }
+}
+```
+
+其中获取单个有效字符：
+
+```c
+char get_printable_char() {
+    while (1) {
+        keycode_des_t key_des = {.raw_data = Wait_For_Key()};
+        if ((key_des.raw_flags & 0b11110011) != 0) { continue; }
+        char code = key_des.code;
+        if (code > 0x20 && code < 0x7f || code == ' ' || code == '\r'
+            || code == '\b') {
+            return code;
+        }
+    }
+}
+```
