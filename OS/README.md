@@ -105,7 +105,7 @@ startProject <project name> <master directory> [<previous project>]
 
 ```makefile
 fd.img : geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin
-	cat geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin > $@
+    cat geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin > $@
     truncate -s 1474560 $@
 ```
 
@@ -114,10 +114,10 @@ fd.img : geekos/fd_boot.bin geekos/setup.bin geekos/kernel.bin
 ```asm
 %macro Int_With_Err 1
 align 8
-	push	dword %1	 ; push interrupt number
-	jmp	Handle_Interrupt ; jump to common handler
+    push	dword %1	 ; push interrupt number
+    jmp	Handle_Interrupt ; jump to common handler
     nop
-	nop				 	 ; NOTE: align Int_With_Err to 16 bytes
+    nop				 	 ; NOTE: align Int_With_Err to 16 bytes
 %endmacro
 ```
 
