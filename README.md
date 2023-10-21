@@ -25,7 +25,7 @@
 - [x] `arch-x` 计算机组成原理试点班 [👉](https://github.com/NotOnlyMIPS/SimpleMIPS)
 - [x] `noj-sql` 数据库原理 [👉](./noj-sql/)
 - [ ] `sql` 数据库原理实验
-- [x] `os` 操作系统实验
+- [x] `os` 操作系统实验 [👉](./os/)
 - [x] `os-x` 操作系统实验试点班 [👉](https://github.com/zymelaii/nwpu-os-lab)
 - [ ] `compiler` 编译原理实验
 - [x] `compiler-x` 编译原理试点班 [👉](https://github.com/zymelaii/SSYC)
