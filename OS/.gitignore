@@ -7,4 +7,5 @@
 *.lib
 *.dll
 *.dylib
+.lock
 !geekos-ws/**/build
