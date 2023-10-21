@@ -1,0 +1,24 @@
+#! /usr/bin/perl
+
+# Inspect a 32 word at a specified offset in a file.
+# $Revision: 1.1 $
+
+use strict qw(refs vars);
+use FileHandle;
+
+my $filename = shift @ARGV;
+my $offset = shift @ARGV;
+
+((defined $filename) && (defined $offset))
+    || die "Usage: pw <filename> <offset>\n";
+
+my $fh = new FileHandle("<$filename");
+printf( "%08x\n", ReadWord($fh, $offset) );
+
+sub ReadWord {
+    my ($fh, $offset) = @_;
+    seek $fh, $offset, SEEK_SET;
+    my $buf = 'X' x 4;
+    read $fh, $buf, 4;
+    return unpack('V',$buf);
+}

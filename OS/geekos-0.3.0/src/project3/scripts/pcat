@@ -1,0 +1,23 @@
+#! /usr/bin/perl
+
+# A version of cat written in perl.
+
+use strict qw(refs vars);
+use FileHandle;
+
+binmode STDOUT;
+
+my $buf = chr(0) x 1024;
+
+my $file;
+while ( ($file = shift @ARGV) ) {
+    my $fh = new FileHandle("<$file");
+    (defined $fh) || die "Couldn't open $file: $!\n";
+    binmode $fh;
+
+    my $n;
+    while ( ($n = sysread($fh, $buf, 1024)) > 0 ) {
+	syswrite( STDOUT, $buf, $n );
+    }
+    $fh->close();
+}

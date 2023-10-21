@@ -1,0 +1,359 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 10. Project 5: A Filesystem</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="vmproject.html" title="Chapter 9. Project 4: Virtual Memory"><link rel="next" href="ipcproject.html" title="Chapter 11. Project 6: ACLs and Inter-process Communication"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 10. Project 5: A Filesystem</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="vmproject.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="ipcproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="fsproject"></a>Chapter 10. Project 5: A Filesystem</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="fsproject.html#project5_intro">1. Introduction</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_gosfs">2. GOSFS: GeekOS FileSystem</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_vfs">3. The Virtual Filesystem Layer (VFS)</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_vfstypesandoperations">4. VFS Data Types and Operations</a></span></dt><dd><dl><dt><span class="sect2"><a href="fsproject.html#project5_vfsfilesystem">4.1. Filesystem</a></span></dt><dt><span class="sect2"><a href="fsproject.html#project5_vfsmountpoint">4.2. Mount_Point</a></span></dt><dt><span class="sect2"><a href="fsproject.html#project5_vfsfile">4.3. File</a></span></dt></dl></dd><dt><span class="sect1"><a href="fsproject.html#project5_requirements">5. Requirements</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_direntry">6. GOSFS_Dir_Entry</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_buffercache">7. The Buffer Cache</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_gettingstarted">8. Getting Started</a></span></dt><dt><span class="sect1"><a href="fsproject.html#project5_issues">9. Issues</a></span></dt><dd><dl><dt><span class="sect2"><a href="fsproject.html#project5_concurrency">9.1. Concurrency</a></span></dt><dt><span class="sect2"><a href="fsproject.html#project5_filesharing">9.2. File Sharing</a></span></dt></dl></dd></dl></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_intro"></a>1. Introduction</h2></div></div><div></div></div><p>
+The purpose of this project is to add a new filesystem to GeekOS.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_gosfs"></a>2. GOSFS: GeekOS FileSystem</h2></div></div><div></div></div><p>
+The main part of this project is to develop a new filesystem for the
+GeekOS.  This filesystem will reside on the second IDE disk drive in the
+Bochs emulator.  This will allow you to continue to use your existing
+pfat drive to load user programs while you test your filesystem.
+</p><p>
+GOSFS will provide a filesystem that includes multiple directories,
+access control (via user ids), and long file name support.  The access
+control will be added as part of the next project.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_vfs"></a>3. The Virtual Filesystem Layer (VFS)</h2></div></div><div></div></div><p>
+In this project, you will work extensively with the virtual filesystem
+layer, commonly referred to as the VFS.  This part of the kernel
+allows multiple filesystem implementations to coexist.  A high level
+view of the VFS, as well as the C library and kernel subsystems it
+communicates with, is shown in <a href="fsproject.html#vfsdiagram" title="Figure 10.1. Overview of the Virtual Filesystem (VFS)">Figure 10.1, &#8220;Overview of the Virtual Filesystem (VFS)&#8221;</a>.
+</p><div class="figure"><a name="vfsdiagram"></a><p class="title"><b>Figure 10.1. Overview of the Virtual Filesystem (VFS)</b></p><div class="mediaobject"><img src="figures/vfs.png" alt="Overview of the Virtual Filesystem (VFS)"></div></div><p>
+The VFS layer works by dispatching requests for filesystem operations
+(such as opening, reading, or writing a file) to the appropriate
+filesystem implementation.  The VFS works by defining several abstract
+datatypes representing mounted filesystem instances, open files, and open directories.
+Each of these datatypes contains a <span class="emphasis"><em>virtual function table</em></span>
+which contains pointers to functions in the filesystem that the object
+belongs to.  For example, <tt class="literal">File</tt> objects created by
+the GOSFS filesystem have a virtual function table whose <tt class="function">Read()</tt>
+entry points to the function <tt class="function">GOSFS_Read()</tt>.
+<sup>[<a name="id2979165" href="#ftn.id2979165">4</a>]</sup>
+</p><p>
+To give you an idea of how VFS works, here is what happens when a
+user process reads data from an open file in a GOSFS filesystem.
+</p><div class="orderedlist"><ol type="1"><li><p>
+The process calls the <tt class="function">Read()</tt> in the C library,
+which generates a software interrupts to notify the kernel that a system
+call is requested.  It passes a file descriptor identifying the open file,
+the address of the buffer to store the data read from the file, and the
+number of bytes requested.
+</p></li><li><p>
+The kernel calls the <tt class="function">Sys_Read()</tt> system call handler function.
+This function will look at the process's open file list (in <tt class="literal">User_Context</tt>)
+to find the <tt class="literal">File</tt> object representing the open file.
+It will also need to allocate a kernel buffer to temporarily hold
+the data read from the file.
+It will then call the kernel VFS function <tt class="function">Read()</tt>.
+</p></li><li><p>
+The VFS <tt class="function">Read()</tt> will find the address of the <tt class="function">Read</tt>
+function in the file's virtual function table.  Because the file is part of
+a GOSFS filesystem, this will resolve to the <tt class="function">GOSFS_Read()</tt>
+function.
+</p></li><li><p>
+<tt class="function">GOSFS_Read()</tt> will do whatever work is necessary to
+read the requested data from the file, at the current file position,
+copying the data into the kernel buffer created by <tt class="function">Sys_Read()</tt>.
+</p></li><li><p>
+When control returns to <tt class="function">Sys_Read()</tt>, it will
+copy the data read from the kernel buffer to the user buffer
+(using the <tt class="function">Copy_To_User()</tt> function),
+and destroy the kernel buffer.
+</p></li><li><p>
+Finally, <tt class="function">Sys_Read()</tt> will return, and the
+process will resume execution.
+</p></li></ol></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_vfstypesandoperations"></a>4. VFS Data Types and Operations</h2></div></div><div></div></div><p>
+This section describes the high level VFS data types and
+operations, which are defined in <tt class="filename">&lt;geekos/vfs.h&gt;</tt>.
+You should read and understand the definitions in this header,
+and you may also want to look at the VFS function implementations
+in <tt class="filename">src/geekos/vfs.c</tt>.
+</p><p>
+Every operation described in this section is implemented by
+function in <tt class="filename">src/geekos/gosfs.c</tt>.
+For example, the <tt class="function">Read()</tt> file operation
+is implemented by the function <tt class="function">GOSFS_Read()</tt>.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project5_vfsfilesystem"></a>4.1. Filesystem</h3></div></div><div></div></div><p>
+The <tt class="literal">Filesystem</tt> data structure represents
+a filesystem type.  There are two operations associated with
+<tt class="literal">Filesystem</tt>:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+  The <tt class="literal">Format()</tt> operation formats a block device.
+  Formatting writes filesystem metadata to the device so that it can
+  be mounted.
+</p></li><li><p>
+  The <tt class="literal">Mount()</tt> operation mounts a block device
+  containing on a particular path prefix in the overall filesystem namespace.
+  It must check to see that the required filesystem metadata is present,
+  and then initialize any internal data structures needed by the
+  filesystem in order to serve requests such as opening files,
+  reading and writing file data, etc.
+</p></li></ul></div><p>
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project5_vfsmountpoint"></a>4.2. Mount_Point</h3></div></div><div></div></div><p>
+The <tt class="literal">Mount_Point</tt> data structure represents a mounted
+filesystem instance.  In GeekOS, filesystems are mounted on a
+<span class="emphasis"><em>path prefix</em></span>, which indicates what part of
+the overall filesystem namespace the mounted filesystem will be
+part of.  For example, the PFAT filesystem containing the user executables
+is usually mounted on the <tt class="filename">/c</tt> prefix.
+Each mounted filesystem uses a block device as its underlying storage.
+</p><p>
+<tt class="literal">Mount_Point</tt> objects support several operations:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+The <tt class="function">Open()</tt> operation opens a file in the
+mounted filesystem.
+</p></li><li><p>
+The <tt class="function">Create_Directory()</tt> operation creates a
+directory in the mounted filesystem.
+</p></li><li><p>
+The <tt class="function">Open_Directory()</tt> operation opens
+a directory in the mounted filesystem, so that its entries
+can be read using the <tt class="function">Read_Entry()</tt>
+operation.
+</p></li><li><p>
+The <tt class="function">Stat()</tt> retrieves the files metadata,
+such as size and file permissions, for a named file in the
+mounted filesystem.
+</p></li><li><p>
+The <tt class="function">Sync()</tt> flushes all file data and filesystem
+metadata stored in memory but not written to the disk.
+This operation is needed because filesystems ususally keep
+data in memory buffers, and write modified data out to the disk
+later.  Following a <tt class="function">Sync()</tt> operation,
+all data in the filesystem is guaranteed to be written to the disk.
+</p></li></ul></div><p>
+</p><p>
+For all <tt class="literal">Mount_Point</tt> operations that take
+paths,
+the path prefix used to mount the filesystem
+is removed before the operation is called.
+So, if a GOSFS filesystem
+is mounted on prefix "<tt class="filename">/d</tt>", and
+the file "<tt class="filename">/d/stuff/foo.txt</tt>" is passed
+to the high level VFS function <tt class="function">Open()</tt>,
+the path passed to <tt class="function">GOSFS_Open()</tt> will
+be "<tt class="filename">/stuff/foo.txt</tt>".
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project5_vfsfile"></a>4.3. File</h3></div></div><div></div></div><p>
+The <tt class="literal">File</tt> data type represents a file or directory
+opened by a process.  <tt class="literal">File</tt> objects are created
+by the <tt class="function">Open()</tt> and <tt class="function">Open_Directory()</tt>
+<tt class="literal">Mount_Point</tt> operations.
+</p><p>
+Regular <tt class="literal">File</tt> objects (i.e., those representing files,
+not directories) maintain a current <span class="emphasis"><em>file position</em></span>.
+All reads and writes are performed relative to the current file position.
+</p><p>
+<tt class="literal">File</tt> objects support the following operations:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+The <tt class="function">FStat()</tt> operation, like <tt class="literal">Mount_Point</tt>'s
+<tt class="function">Stat()</tt> operation, retrieves file metadata, such
+as size and file permissions.
+</p></li><li><p>
+The <tt class="function">Read()</tt> operation reads data at the current
+file position.  Directories do not support this operation.
+</p></li><li><p>
+The <tt class="function">Write()</tt> operation writes data at the current
+file position.  Directories do not support this operation.
+</p></li><li><p>
+The <tt class="function">Seek()</tt> operation changes the current file position.
+Directories do not support this operation.
+</p></li><li><p>
+The <tt class="function">Close()</tt> operation closes the file or directory.
+</p></li><li><p>
+The <tt class="function">Read_Entry()</tt> operation reads the next directory
+entry from an open directory.  This operation is not supported for
+regular files.
+</p></li></ul></div><p>
+</p></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_requirements"></a>5. Requirements</h2></div></div><div></div></div><p>
+Each user space process will have an open file table that keeps track of
+which files that process can currently read and write. Any user process
+should be able to have 10 files open at once: this constant
+is defined as the <tt class="constant">USER_MAX_FILES</tt> macro in
+<tt class="filename">&lt;geekos/user.h&gt;</tt>.
+</p><p>
+The header file <tt class="filename">&lt;geekos/gosfs.h&gt;</tt> specifies
+constants and data structures for you to use in your filesystem
+implementation.
+All disk allocations will be in
+units of 4KB (i.e. 8 physical disk blocks);
+this value is specified by the <tt class="constant">GOSFS_FS_BLOCK_SIZE</tt>
+macro.
+You should maintain a free disk block list via a bit
+vector.  A library of bitset functions is provided (prototypes
+in <tt class="filename">&lt;geekos/bitset.h&gt;</tt>) that will allow you to set and clear
+bits in blocks of memory, and also to find free bits
+representing free filesystem blocks.
+Your filesystem should support long filenames up to 127 characters,
+as specified by the <tt class="constant">GOSFS_FILENAME_MAX</tt> constant.
+The total file name (i.e. a
+full path) will be no more than 1023 characters (as specified by the
+<tt class="constant">VFS_MAX_PATH_LEN</tt> in the header
+<tt class="filename">&lt;geekos/fileio.h&gt;</tt>).
+
+</p><p>
+You will use a version of indexed allocation to represent the blocks of
+your filesystem.  The first 8 4KB blocks are direct blocks, the next
+1024 blocks are indirect blocks.  These values are specified by the
+<tt class="constant">GOSFS_NUM_DIRECT_BLOCKS</tt> and <tt class="constant">GOSFS_NUM_INDIRECT_BLOCKS</tt>
+macros, respectively.
+The filesystem should provide a way
+to implement the next 1 million blocks as double indirect blocks, but
+you are not required to implement that interface.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_direntry"></a>6. GOSFS_Dir_Entry</h2></div></div><div></div></div><p>
+The <tt class="literal">GOSFS_Dir_Entry</tt> data structure represents
+a single directory entry as it is stored on disk.
+It contains several fields:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+The <tt class="varname">size</tt> field stores the size of the file or
+directory referred to by the entry.
+</p></li><li><p>
+The <tt class="varname">flags</tt> field stores several boolean flags.
+The <tt class="constant">GOSFS_DIRENTRY_USED</tt> flag indicates that the
+directory entry is used.  If this is not set, it means the directory
+entry is available.  The <tt class="constant">GOSFS_DIRENTRY_ISDIRECTORY</tt>
+flag indicates that the directory entry refers to a subdirectory.
+The <tt class="constant">GOSFS_DIRENTRY_SETUID</tt> flag means that the
+directory entry refers to a file which is a <span class="emphasis"><em>setuid executable</em></span>:
+if the file is executed, the new process created will have the same
+user id as the file's owner.  (You will not need to do anything with
+this bit until the next project.)
+</p></li><li><p>
+The <tt class="varname">filename</tt> field stores the filename, including
+room for a nul terminator character.
+</p></li><li><p>
+The <tt class="varname">blockList</tt> field stores the block numbers of
+the direct, indirect, and doubly indirect blocks representing the
+allocated storage for the file or directory.
+</p></li><li><p>
+Finally, the <tt class="varname">acl</tt> field stores the list of
+Access Control List entries for the file or directory.
+The first entry specifies the entry for the file's owner.
+</p></li></ul></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_buffercache"></a>7. The Buffer Cache</h2></div></div><div></div></div><p>
+In your filesystem implementation, you will frequently need to read
+data from the filesystem into memory, and sometimes you will need
+to write data from memory back to the filesystem.  Most operating
+system kernels use a <span class="emphasis"><em>buffer cache</em></span> for this
+purpose.  The idea is that the buffer cache contains memory buffers
+which correspond to particular filesystem blocks.  To read a block,
+the kernel requests a buffer containing that block from the buffer cache.
+To write a block, the data in the buffer is modified, and the
+buffer is marked as <span class="emphasis"><em>dirty</em></span>.  At some point in
+the future, the data in the dirty buffer will be written back
+to the disk.
+</p><p>
+For this project, we have provided you will a buffer cache implementation,
+which you can use by including the <tt class="filename">&lt;geekos/bufcache.h&gt;</tt>
+header file.
+The <tt class="literal">Buffer_Cache</tt> data structure represents a buffer cache
+for a particular filesystem instance.  You can create a new buffer cache
+by passing the block device to the <tt class="function">Create_FS_Buffer_Cache()</tt>
+function.  A buffer containing the data for a single filesystem block
+is represented by the <tt class="literal">FS_Buffer</tt> data type.
+You can request a buffer for a particular block by calling the
+<tt class="function">Get_FS_Buffer()</tt> function.  The actual memory containing
+the data for the block is pointed to by the <tt class="varname">data</tt>
+field of <tt class="literal">FS_Buffer</tt>.  If you modify the data in a buffer,
+you must call the <tt class="function">Modify_FS_Buffer()</tt> function
+to let the buffer cache know that the buffer is now dirty.
+When your code has finished accessing or modifying a buffer,
+it should be released using the <tt class="function">Release_FS_Buffer</tt>
+function.
+</p><p>
+Buffers are accessed in a <span class="emphasis"><em>transactional</em></span> manner.
+Only one thread can use a buffer at a time.  If one thread is using
+a buffer and a second requests the same buffer
+(by calling <tt class="function">Get_FS_Buffer()</tt>),
+the second thread will be suspended until the first thread releases
+the buffer (by calling <tt class="function">Release_FS_Buffer()</tt>).
+Note that you need to be careful never to call <tt class="function">Get_FS_Buffer()</tt>
+twice in a row, since that will cause a self-deadlock.
+</p><p>
+The GeekOS buffer cache writes dirty buffers to disk lazily.
+If you want to immediately write the contents of a buffer back 
+to the disk, you can call the <tt class="function">Sync_FS_Buffer()</tt>
+function.  It is generally a good idea to write back modified filesystem
+buffers when they contain <span class="emphasis"><em>filesystem metadata</em></span>
+such as directories or disk allocation bitmaps; by writing these
+blocks eagerly, the filesystem is less likely to be seriously corrupted
+if the operating system crashes or if the computer is turned off
+unexpectedly.  You can flush all of the dirty buffers in a buffer
+cache by calling the <tt class="function">Sync_FS_Buffer_Cache()</tt>;
+this is useful for implementing the <tt class="function">Sync()</tt>
+operation for your mounted filesystems.
+</p><p>
+The <tt class="function">Destroy_FS_Buffer_Cache()</tt> function destroys
+a buffer cache, first flushing all dirty buffers to disk.  This may
+be useful in your implementation of <tt class="function">GOSFS_Format()</tt>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_gettingstarted"></a>8. Getting Started</h2></div></div><div></div></div><p>
+Implementing a filesystem is complex.  This section offers some
+suggestions on how to approach the project.
+</p><p>
+First, implement the <tt class="function">GOSFS_Format()</tt> function.
+You may want to create a temporary <tt class="literal">FS_Buffer_Cache</tt>
+object to use to perform I/O.
+</p><p>
+Next, implement the <tt class="function">GOSFS_Mount()</tt> function.
+This function is passed a <tt class="literal">Mount_Point</tt> object
+with a pointer to  the block device containing the filesystem image.
+You will probably want to create an auxiliary data structure to
+store in the mount point; you can use this data structure to store
+a pointer to your buffer cache object, and any other information
+you will need when performing <tt class="literal">Mount_Point</tt>
+operations such as opening a file.  You can store a pointer to
+the auxiliary data structure in the <tt class="varname">fsData</tt>
+field of the <tt class="literal">Mount_Point</tt> object.
+</p><p>
+You can test formatting and mounting a GOSFS filesystem by
+running the following commands from the GeekOS shell prompt:
+</p><pre class="screen">
+<tt class="prompt">$ </tt>format ide1 gosfs<span><b class="command"></b></span>
+<tt class="prompt">$ </tt>mount ide1 /d gosfs<span><b class="command"></b></span>
+</pre><p>
+</p><p>
+Once you can format and mount a GOSFS filesystem, you can start
+implementing <tt class="literal">Mount_Point</tt> functions.
+<tt class="function">GOSFS_Open()</tt> is a logical place to start.
+When this function is called with the <tt class="constant">O_CREATE</tt>
+bit set in the mode flags, you should create a new file.
+As with <tt class="function">GOSFS_Mount()</tt>, you will probably
+want to store an auxiliary data structure in the <tt class="literal">File</tt>
+object when it is created; you can use the <tt class="varname">fsData</tt>
+field for this purpose.
+You can use the <tt class="filename">touch.exe</tt> program
+to test file creation.  You will also need to implement
+<tt class="function">GOSFS_Create_Directory()</tt>, which you can
+test using the <tt class="filename">mkdir.exe</tt> program.
+</p><p>
+Once files and directories can be created, you can start working
+on <tt class="literal">File</tt> operations.  A good place to start would
+be the <tt class="function">GOSFS_Close()</tt> function.  Eventually you
+will need to implement more complex functions like <tt class="function">GOSFS_Read()</tt>,
+<tt class="function">GOSFS_Read_Entry()</tt>, and <tt class="function">GOSFS_Write()</tt>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="project5_issues"></a>9. Issues</h2></div></div><div></div></div><p>
+This section discusses some implementation issues you should
+think about as you work on the project.
+</p><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project5_concurrency"></a>9.1. Concurrency</h3></div></div><div></div></div><p>
+Mount points, files, and directories can be accessed by multiple
+processes.  Therefore, you will need to establish a locking discipline
+for your filesystem data structures to ensure that they can be
+safely accessed by multiple threads and processes.  For this project,
+you can use a simple approach, such as having a single mutex protect
+an entire filesystem instance.
+</p></div><div class="sect2" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="project5_filesharing"></a>9.2. File Sharing</h3></div></div><div></div></div><p>
+The <tt class="literal">File</tt> data structure defined in
+<tt class="filename">&lt;geekos/vfs.h&gt;</tt> represents a file or directory
+that has been opened by a process.  If two processes open the same
+file at the same time, they will have separate <tt class="literal">File</tt>
+objects.  This is necessary because both processes must have separate
+file positions; if one process performs a read or a seek operation,
+it should not affect the other process.
+However, both objects refer to the same file in the filesystem;
+changes made by one process should be seen by the other.
+This means that you will probably want to arrange for both
+VFS <tt class="literal">File</tt> objects to have a pointer to  a common,
+shared data structure representing the "real" file.
+This arrangement is shown in <a href="fsproject.html#sharedfile" title="Figure 10.2. Multiple File objects can refer to a common data structure">Figure 10.2, &#8220;Multiple File objects can refer to a common data structure&#8221;</a>.
+</p><div class="figure"><a name="sharedfile"></a><p class="title"><b>Figure 10.2. Multiple <tt class="literal">File</tt> objects can refer to a common data structure</b></p><div class="mediaobject"><img src="figures/sharedfile.png" alt="Multiple File objects can refer to a common data structure"></div></div><p>
+Because there can be multiple references to your internal file data
+structure, you will probably want to keep a reference count,
+so you can clean up properly when there are no more references.
+</p></div></div><div class="footnotes"><br><hr width="100" align="left"><div class="footnote"></div></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="vmproject.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="ipcproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 9. Project 4: Virtual Memory </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 11. Project 6: ACLs and Inter-process Communication</td></tr></table></div></body></html>

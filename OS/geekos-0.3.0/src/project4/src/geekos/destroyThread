@@ -1,0 +1,30 @@
+// Destroy given thread.
+// Called with interrupts enabled.
+static void Destroy_Thread( struct Kernel_Thread* kthread )
+{
+    struct threadItem *curr, *lag;
+
+    KASSERT(!Interrupts_Enabled());
+
+    for (lag=NULL, curr= allThreads; curr; curr=curr->next) {
+        if (curr->thread == kthread) {
+	    if (curr == allThreads) {
+		KASSERT(lag == NULL);
+		allThreads = curr->next;
+	    } else {
+		KASSERT(lag->next == curr);
+		lag->next = curr->next;
+	    }
+	    Free(curr);
+	    break;
+	} else {
+	    lag = curr;
+        }
+    }
+
+    KASSERT(curr);
+
+    // Dispose of the thread's memory.
+    Free_Page( kthread->stackPage );
+    Free_Page( kthread );
+}

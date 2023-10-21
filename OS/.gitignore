@@ -1,0 +1,10 @@
+*.bin
+*.img
+*.o
+*.a
+*.so
+*.obj
+*.lib
+*.dll
+*.dylib
+!geekos-ws/**/build

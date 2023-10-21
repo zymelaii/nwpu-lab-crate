@@ -1,0 +1,31 @@
+#! /usr/bin/perl
+
+# This script is used for creating a file full of zeroes,
+# which we use to create the hard disk image used by bochs.
+
+use strict qw(refs vars);
+use FileHandle;
+use IO::Seekable;
+
+if ( scalar(@ARGV) != 2 ) {
+    print "Usage: zerofile <output file> <num sectors>\n";
+    exit 1;
+}
+
+my $outfile = shift @ARGV;
+my $numsecs = shift @ARGV;
+
+my $buf = chr(0) x 1;
+
+my $fh = new FileHandle(">$outfile");
+(defined $fh) || die "Couldn't open $outfile: $!\n";
+binmode $fh;
+
+if ( !sysseek( $fh, ($numsecs * 512) - 1, SEEK_SET ) ) {
+    die "Couldn't seek in $outfile: $!\n";
+}
+if ( !syswrite( $fh, $buf, 1 ) ) {
+    die "Couldn't write to $outfile: $!\n";
+}
+
+$fh->close();

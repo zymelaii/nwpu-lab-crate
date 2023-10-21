@@ -1,0 +1,28 @@
+#! /usr/bin/perl
+
+# Script to process include/geekos/errno.h to produce a table
+# of error description strings that can be compiled and
+# linked into libc.
+
+use strict qw(refs vars);
+
+my @errs = ();
+my @syms = ();
+
+$errs[0] = 'No error';
+
+while (<>) {
+	if (m,^#define\s*(\S+)\s*(-\d+)\s*/\*\s*(.*\S)\s*\*/\s*$,) {
+		$errs[- $2] = $3;
+		$syms[- $2] = $1;
+	}
+}
+
+print "const char *__strerrTable[] = {\n";
+for (my $i = 0; $i < scalar(@errs); $i++) {
+	print "    \"", $errs[$i], "\", /* ", $syms[$i], " */\n";
+}
+print "};\n";
+print "const int __strerrTableSize = sizeof(__strerrTable) / sizeof(const char *);\n";
+
+# vim:ts=4

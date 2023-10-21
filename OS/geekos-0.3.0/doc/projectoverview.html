@@ -1,0 +1,217 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1"><title>Chapter 4. Overview of the Projects</title><meta name="generator" content="DocBook XSL Stylesheets V1.64.1"><link rel="home" href="index.html" title="Hacking GeekOS"><link rel="up" href="index.html" title="Hacking GeekOS"><link rel="previous" href="overview.html" title="Chapter 3. Overview of GeekOS"><link rel="next" href="introproject.html" title="Chapter 5. Project 0: Getting Started"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter 4. Overview of the Projects</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="overview.html">Prev</a> </td><th width="60%" align="center"> </th><td width="20%" align="right"> <a accesskey="n" href="introproject.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="projectoverview"></a>Chapter 4. Overview of the Projects</h2></div></div><div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="projectoverview.html#projectsbrief">1. Project Descriptions</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#requiredsoftware">2. Required Software</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#installing">3. Setting Up the GeekOS Distribution</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#extracting">4. Starting a Project</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#transition">5. Continuing to a New Project</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#compiling">6. Compiling a Project</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#running">7. Running GeekOS Using Bochs</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#troubleshooting">8. Troubleshooting</a></span></dt><dt><span class="sect1"><a href="projectoverview.html#hints">9. Project Hints</a></span></dt></dl></div><p>
+This chapter gives a brief overview of the projects in which you will add
+important new functionality to the GeekOS kernel.  It also discusses
+all of the requirements for compiling and running GeekOS.
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="projectsbrief"></a>1. Project Descriptions</h2></div></div><div></div></div><p>
+There are a total of seven projects.  For the most part, each project builds
+on the one before it, so you will need to do them in order.
+The projects were originally developed as part of a senior
+level undergraduate operating systems course, so
+the complete sequence will require a significant amount of effort to
+complete.  Some projects will be more
+difficult than others; in particular, the virtual memory project
+(<a href="vmproject.html" title="Chapter 9. Project 4: Virtual Memory">Chapter 9, <i>Project 4: Virtual Memory</i></a>) and the filesystem project (<a href="fsproject.html" title="Chapter 10. Project 5: A Filesystem">Chapter 10, <i>Project 5: A Filesystem</i></a>)
+require you to write a fairly large amount of code (several hundred to
+a thousand lines of code for each project).  The good news is that when
+you complete the last project, GeekOS will be a functional operating
+system, capable of running multiple process with full memory protection.
+</p><p>
+Project 0 (<a href="introproject.html" title="Chapter 5. Project 0: Getting Started">Chapter 5, <i>Project 0: Getting Started</i></a>) serves as an introduction to
+modifying, building, and running GeekOS.  You will add a  kernel
+thread to read keys from the keyboard and echo them to the screen.
+</p><p>
+For Project 1 (<a href="elfparsingproject.html" title="Chapter 6. Project 1: Loading Executable Files">Chapter 6, <i>Project 1: Loading Executable Files</i></a>), you become
+familiar with the structure of an executable file. You are provided
+with code for loading and running executable files, but you need to
+first become familiar with the ELF file format, then write code to 
+parse the provided file and pass it to the loader.
+</p><p>
+In Project 2 (<a href="usermodeproject.html" title="Chapter 7. Project 2: Adding Processes">Chapter 7, <i>Project 2: Adding Processes</i></a>), you will add
+support for <span class="emphasis"><em>user mode processes</em></span>.  Rather than using
+virtual memory to provide separate user address spaces, this project
+uses <span class="emphasis"><em>segmentation</em></span>, which is simpler to understand.
+</p><p>
+Project 3 (<a href="schedulingproject.html" title="Chapter 8. Project 3: Scheduling">Chapter 8, <i>Project 3: Scheduling</i></a>) improves the GeekOS scheduler
+and adds support for semaphores to coordinate multiple processes.
+</p><p>
+Project 4 (<a href="vmproject.html" title="Chapter 9. Project 4: Virtual Memory">Chapter 9, <i>Project 4: Virtual Memory</i></a>) replaces the segmentation based
+user memory protection added in Project 1 with paged virtual memory.
+Pages of memory can be stored on disk in order to free up RAM when
+the demand for memory exceeds the amount available.
+</p><p>
+Project 5 (<a href="fsproject.html" title="Chapter 10. Project 5: A Filesystem">Chapter 10, <i>Project 5: A Filesystem</i></a>) adds a hierarchical read/write
+filesystem to GeekOS.
+</p><p>
+Project 6 (<a href="ipcproject.html" title="Chapter 11. Project 6: ACLs and Inter-process Communication">Chapter 11, <i>Project 6: ACLs and Inter-process Communication</i></a>) adds access control lists
+(ACLs) to the filesystem, and adds interprocess communication using
+anonymous half-duplex pipes.  Upon the completion of this project, GeekOS will
+resemble a very simple version of Unix.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="requiredsoftware"></a>2. Required Software</h2></div></div><div></div></div><p>
+Compiling GeekOS requires a number of tools.  The good news is that if you
+are running on a Linux/x86 or FreeBSD/x86 system, or if you are
+running <a href="http://cygwin.com/" target="_top">Cygwin</a> on Windows, you probably have
+most or all of the software you need to compile GeekOS already installed.
+If you don't, it is generally not too difficult to obtain the required
+software.
+</p><p>
+The following is a complete list of software needed to compile GeekOS.
+</p><div class="itemizedlist"><ul type="disc"><li><p><a href="http://gcc.gnu.org/" target="_top">gcc</a>, version 2.95.2 or later,
+  targeting any i386/ELF platform, or targeting PECOFF under Cygwin</p></li><li><p>Any ANSI-compliant C compiler for the host platform (the computer
+  you are planning to compile GeekOS on); unless you are cross-compiling,
+  this can be the same compiler you use to compile GeekOS</p></li><li><p><a href="http://www.gnu.org/software/binutils/" target="_top">GNU binutils</a>,
+  targeting any i386/ELF platform, or PECOFF under Cygwin; you probably already have this if you
+  have gcc</p></li><li><p><a href="http://www.gnu.org/software/make/" target="_top">GNU Make</a>; the GeekOS
+  makefile will not work with other versions of make</p></li><li><p><a href="http://www.perl.org/" target="_top">Perl</a>, version 5 or
+  later</p></li><li><p><a href="http://www.gnu.org/software/grep/grep.html" target="_top">egrep</a></p></li><li><p><a href="http://www.gnu.org/software/gawk/" target="_top">AWK</a></p></li><li><p><a href="http://www.gnu.org/software/diffutils/" target="_top">diff3</a></p></li><li><p><a href="http://nasm.sourceforge.net/" target="_top">NASM</a>; on Linux or
+  FreeBSD systems, this is probably the only required software not already installed</p></li></ul></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="installing"></a>3. Setting Up the GeekOS Distribution</h2></div></div><div></div></div><p>
+Before you get started, you should choose a directory in which to install
+the GeekOS distribution.
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="figures/note.png"></td><th align="left">Note</th></tr><tr><td colspan="2" align="left" valign="top"><p>
+  This document assumes that you are using a Unix-like system such as Linux,
+  FreeBSD, or MacOS/X, and that you are using the <a href="http://www.gnu.org/software/bash/" target="_top">bash</a>
+  shell, or a similar shell such as the Bourne (/bin/sh) or Korn (/bin/ksh) shells.
+  </p></td></tr></table></div><p>
+</p><p>
+A GeekOS distribution is a file whose name
+looks like <tt class="filename">geekos-<i class="replaceable"><tt>version</tt></i>.tar.gz</tt>.
+For example, let's say you are using GeekOS version 0.2.0, that you have
+downloaded the GeekOS distribution to the directory
+<i class="replaceable"><tt>/home/fred</tt></i>, and that you want to install the
+distribution in the directory <i class="replaceable"><tt>/home/fred/software</tt></i>.
+In this case, you would install the source distribution using the following commands:
+</p><pre class="screen">
+<tt class="prompt">$ </tt><span><b class="command">cd /home/fred/software</b></span>
+<tt class="prompt">$ </tt><span><b class="command">gunzip -c /home/fred/geekos-0.2.0.tar.gz | tar xvf -</b></span>
+<tt class="prompt">$ </tt><span><b class="command">GEEKOS_HOME=/home/fred/software/geekos-0.2.0</b></span>
+<tt class="prompt">$ </tt><span><b class="command">export GEEKOS_HOME</b></span>
+<tt class="prompt">$ </tt><span><b class="command">PATH=$GEEKOS_HOME/bin:$PATH</b></span>
+<tt class="prompt">$ </tt><span><b class="command">export PATH</b></span>
+</pre><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="extracting"></a>4. Starting a Project</h2></div></div><div></div></div><p>
+Once you have installed the GeekOS distribution and all of the software
+required to compile it, you are ready to extract Project 0.
+Let's say you have chosen the directory <i class="replaceable"><tt>/home/fred/work</tt></i>
+to contain the working directory for your project.
+Then you would run the following command:
+</p><pre class="screen">
+<tt class="prompt">$ </tt><span><b class="command">cd /home/fred/work</b></span>
+<tt class="prompt">$ </tt><span><b class="command">startProject project0</b></span>
+</pre><p>
+This will create a directory <i class="replaceable"><tt>/home/fred/work/project0</tt></i>
+containing the GeekOS source code, ready for you to start hacking.
+</p><div class="important" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Important"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Important]" src="figures/important.png"></td><th align="left">Important</th></tr><tr><td colspan="2" align="left" valign="top"><p>
+  It is an extremely good idea to use <a href="http://www.cvshome.org/" target="_top">CVS</a> or a similar
+  version control system to store your project files.  Each time you reach
+  a stable point in your project, commit the source files.  That way,
+  you will always be able to revert to a stable version if something
+  goes wrong with your code.
+  </p></td></tr></table></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="transition"></a>5. Continuing to a New Project</h2></div></div><div></div></div><p>
+Each project contains a slightly different version of the base GeekOS
+system.  For example, the buffer cache system is introduced in the
+fourth project because it is required by the filesystem.
+Also, code is sometimes removed because it is no longer needed.
+</p><p>
+To make it easy for you to move your code from one project to the next,
+the <tt class="filename">startProject</tt> script can automatically merge
+your code from the previous project into the code for the new project.
+For example, let's say you have completed Project 0 and are ready
+to move onto Project 1.  You would run the following commands:
+</p><pre class="screen">
+<tt class="prompt">$ </tt><span><b class="command">cd /home/fred/work</b></span>
+<tt class="prompt">$ </tt><span><b class="command">startProject project1 project0</b></span>
+</pre><p>
+</p><p>
+Although the process of incorporating your old code into the new project is
+largely automatic, you will sometimes see messages like the following:
+</p><pre class="screen">
+Warning: Conflicts detected in merge of file src/geekos/main.c
+</pre><p>
+When you look at the file in the new project directory that was reported
+to contain a merge conflict, you will see something like the following:
+</p><pre class="screen">
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; Your version of src/geekos/main.c
+=======
+static void Mount_Filesystems(void);
+static void Spawn_Init_Process(void);
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; Master version of src/geekos/main.c from project1
+</pre><p>
+In this case, two function prototypes were added to the source
+file <tt class="filename">src/geekos/main.c</tt>.
+</p><p>
+In general, you should resolve conflicts by simply deleting the conflict
+markers (the lines reading "&lt;&lt;&lt;&lt;&lt;&lt;&lt;", "=======",
+and "&gt;&gt;&gt;&gt;&gt;&gt;&gt;").  This will have the effect of including
+the code from both your previous project and the new code from the master source
+for the new project.  Sometimes you will need to comment out code from
+your previous project that will not be needed in the new project.
+</p><p>
+When you have removed all of the conflict markers, you can start working
+on getting the project to compile.  Once the code compiles, you
+can start working on adding the new features that the project requires. 
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="compiling"></a>6. Compiling a Project</h2></div></div><div></div></div><p>
+Once you have used the <tt class="filename">startProject</tt> script to
+create a working directory for a project, and you have installed all of the
+software required to compile GeekOS, it should be a simple matter
+to compile the project.  Let's say you are going to compile
+Project 1.  Here are the commands you would use:
+</p><pre class="screen">
+<tt class="prompt">$</tt> <span><b class="command">cd /home/fred/work/project1/build</b></span>
+<tt class="prompt">$</tt> <span><b class="command">make depend</b></span>
+<tt class="prompt">$</tt> <span><b class="command">make</b></span>
+</pre><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="running"></a>7. Running GeekOS Using Bochs</h2></div></div><div></div></div><p>
+Although GeekOS targets a real hardware platform, it is intended to be
+run in the <a href="http://bochs.sourceforge.net/" target="_top">Bochs</a> PC emulator.
+Bochs runs as an ordinary user process in your host operating system,
+and is available for most common operating systems.
+We recommend that you use Bochs version 2.0 or later; as of the time
+of this writing, the latest version of Bochs is 2.1.1, which
+works well with GeekOS.
+</p><p>
+Once you have installed Bochs, you will need to edit the file
+<tt class="filename">build/.bochsrc</tt> in the working directory
+for your project.  In this file, you will see two entries that
+look like the following:
+</p><pre class="programlisting">
+# You will need to edit these lines to reflect your system.
+vgaromimage: /software/bochs-2.0.2/share/bochs/VGABIOS-lgpl-latest
+romimage: file=/software/bochs-2.0.2/share/bochs/BIOS-bochs-latest, address=0xf0000
+</pre><p>
+You should change the lines beginning <tt class="literal">vgaromimage</tt>
+and <tt class="literal">romimage</tt> so that they reflect the directory
+in which you installed Bochs.  For example, if you installed Bochs
+in the directory <tt class="filename">/usr/local/bochs-2.1</tt>,
+you should replace the occurrences of <tt class="filename">/software</tt>
+with <tt class="filename">/usr/local/bochs-2.1</tt>.
+</p><p>
+After editing the <tt class="filename">.bochsrc</tt> file, you are ready to
+start bochs.  Add the directory containing the <tt class="filename">bochs</tt>
+executable to your <tt class="literal">PATH</tt> environment, and then
+invoke the <tt class="filename">bochs</tt> command from within the
+<tt class="filename">build</tt> directory of the project.  You be prompted
+with a set of options.  Choose <tt class="literal">Begin simulation</tt>,
+or simply hit the <span><b class="keycap">Enter</b></span> or <span><b class="keycap">Return</b></span> key
+to choose the default.
+</p><p>
+If GeekOS has been compiled successfully, and Bochs is configured
+properly, a window should appear emulating the VGA text screen.
+You are now running GeekOS!
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="troubleshooting"></a>8. Troubleshooting</h2></div></div><div></div></div><p>
+If GeekOS does not run correctly, look at the file <tt class="filename">bochs.out</tt>
+produced in the <tt class="filename">build</tt> directory of the project.
+If errors prevented Bochs from running, or if GeekOS crashed, this
+file will usually contain diagnostic information which identifies the
+problem.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="hints"></a>9. Project Hints</h2></div></div><div></div></div><p>
+Every project contains placeholders indicating where you need to add
+code.  These placeholders use the <tt class="literal">TODO</tt> macro.
+Here is an example from Project 0:
+</p><pre class="programlisting">
+TODO("Start a kernel thread to echo pressed keys");
+</pre><p>
+These placeholders are often accompanied by a comment giving
+you ideas about how to approach the new functionality that
+needs to be added.
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="overview.html">Prev</a> </td><td width="20%" align="center"><a accesskey="u" href="index.html">Up</a></td><td width="40%" align="right"> <a accesskey="n" href="introproject.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter 3. Overview of GeekOS </td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top"> Chapter 5. Project 0: Getting Started</td></tr></table></div></body></html>

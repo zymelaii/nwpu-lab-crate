@@ -1,0 +1,188 @@
+#! /usr/bin/perl
+
+# Start a GeekOS project.
+# If a previous project is specified, then we automatically
+# merge in the necessary source code changes to bring it up
+# to date with the requested project.
+
+use strict qw(refs vars);
+use FileHandle;
+
+my %createdDirs= ();
+
+my $numArgs = scalar(@ARGV);
+Usage() if ($numArgs < 2 || $numArgs > 3);
+
+my $projectName = shift @ARGV;
+my $masterDir = shift @ARGV;
+my $prevProject = shift @ARGV;
+
+Get_Version($projectName);
+
+if (-d $projectName) {
+	print STDERR "Error: Directory $projectName already exists.\n";
+	exit 1;
+}
+
+if (!(-d "$masterDir/$projectName")) {
+	print STDERR "Error: Project $projectName does not seem to be a valid subdirectory of $masterDir\n";
+	exit 1;
+}
+
+# If there is no previous project to merge in,
+# then we just copy the project files.
+if (!defined $prevProject) {
+	my $rc = system("cp -r $masterDir/$projectName $projectName")/256;
+	print STDERR "Error: Could not copy $projectName from $masterDir\n" if ($rc != 0);
+	exit $rc;
+}
+
+# Previous project specified.
+# We will do a 3 way merge by incorporating the differences between
+# the master versions of the previous and current projects into
+# the student's solution to the previous project, outputting the
+# merged source to the new project solution directory.
+
+Check_Transition($projectName, $prevProject);
+
+#print "Merging...\n";
+my @files = Build_File_List("$masterDir/$projectName", $prevProject);
+foreach my $file (@files){
+	#print "$file\n";
+
+	my $newFile = "$masterDir/$projectName/$file";
+	my $prevFile= "$prevProject/$file";
+	my $outFile = "$projectName/$file";
+
+	my $newFileExists = (-r $newFile);
+	my $prevFileExists= (-r $prevFile);
+
+	if (!($newFileExists || $prevFileExists)) {
+		print STDERR "Error: File $file doesn't exist in either master or previous project directory?";
+		exit 1;
+	}
+
+	my $outDir = Get_Dir($outFile);
+	Create_Dir($outDir);
+
+	# If it exists in the new project but not the previous project,
+	# just copy it.
+	if (!$prevFileExists) {
+		my $rc = system("cp $newFile $outFile")/256;
+		if ($rc != 0) {
+			print STDERR "Error: Could not copy $newFile to $outFile\n";
+			exit 1;
+		}
+	}
+
+	# If it exists in the previous project but not the new one (i.e.,
+	# the student added it somewhere along the way), just copy it.
+	elsif (!$newFileExists) {
+		my $rc = system("cp $prevFile $outFile")/256;
+		if ($rc != 0) {
+			print STDERR "Error: Could not copy $prevFile to $outFile\n";
+			exit 1;
+		}
+	}
+
+	# File exists in both previous project and new master project.
+	# Use diff3 to generate it.
+	else {
+		my $prevMasterFile = "$masterDir/$prevProject/$file";
+
+		my $diff3Command = "diff3 -L 'Your version of $file' -L 'Master version of $file from $prevProject' -L 'Master version of $file from $projectName' -E -am $prevFile $prevMasterFile $newFile > $outFile";
+		#print "$diff3Command\n";
+		my $rc = system($diff3Command)/256;
+		if ($rc == 1) {
+			print STDERR "Warning: Conflicts detected in merge of file $file\n";
+		} elsif ($rc != 0) {
+			print STDERR "Error: Could not run diff3 to generate $outFile\n";
+			exit 1;
+		}
+	}
+}
+
+
+###################################################################
+# Subroutines
+###################################################################
+
+sub Usage() {
+	print STDERR "Usage: startProject <project name> <master directory> [<previous project>]\n";
+	exit 1;
+}
+
+sub Get_Version {
+	my ($proj) = @_;
+	if (!($proj =~ /^project(\d)$/)) {
+		print STDERR "Error: Invalid project name $proj\n";
+		exit 1;
+	}
+	return $1;
+}
+
+sub Check_Transition {
+	my ($cur,$prev) = @_;
+	my $curVersion = Get_Version($cur);
+	my $prevVersion = Get_Version($prev);
+	if ($curVersion != $prevVersion + 1) {
+		print STDERR "Error: Project $cur is not the immediate successor of project $prevVersion\n";
+		exit 1;
+	}
+}
+
+# Build union of all regular non-CVS metadata files in
+# given list of directories.
+sub Build_File_List {
+	my @dirs = @_;
+	my %files = ();
+
+	# Find all of the regular files that aren't in CVS directories.
+	foreach my $dir (@dirs) {
+		my $fh = new FileHandle("find $dir \\( -path '*/CVS/*' -o -type d \\) -o -print|");
+		if (!defined $fh) {
+			print STDERR "Error: Couldn't get file list for $dir\n";
+			exit 1;
+		}
+
+		while (<$fh>) {
+			chop;
+			my $file = substr($_, length("$dir/"));
+			$files{$file} = 1;
+		}
+
+		$fh->close();
+	}
+
+	return sort keys %files;
+}
+
+# Get directory part of a path.
+sub Get_Dir {
+	my ($path) = @_;
+	#print "getting directory for $path\n";
+	if ($path =~ m,^(.*/)?([^/]+)$,) {
+		my $dir = $1;
+		$dir =~ s,/$,,;
+		return $dir;
+	} else {
+		return "";
+	}
+
+}
+
+# Create a directory if it doesn't exist yet.
+sub Create_Dir {
+	my ($dir) = @_;
+	if (!exists $createdDirs{$dir}) {
+		#print "Creating $dir\n";
+		my $rc =system("mkdir -p $dir")/256;
+		if ($rc != 0) {
+			print STDERR "Error: Could not create directory $dir\n";
+			exit 1;
+		}
+		$createdDirs{$dir} = 1;
+	}
+}
+
+# vim:ts=4

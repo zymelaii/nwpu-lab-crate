@@ -1,0 +1,3145 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+                    "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
+
+<book lang="en" id="hacking-geekos">
+
+<bookinfo>
+<title>Hacking GeekOS</title>
+
+<authorgroup>
+  <author>
+    <firstname>David</firstname>
+    <othername>H.</othername>
+    <surname>Hovemeyer</surname>
+    <affiliation>University of Maryland</affiliation>
+  </author>
+  <author>
+    <firstname>Jeffrey</firstname>
+    <othername>K.</othername>
+    <surname>Hollingsworth</surname>
+    <affiliation>University of Maryland</affiliation>
+  </author>
+  <author>
+    <firstname>Iulian</firstname>
+    <surname>Neamtiu</surname>
+    <affiliation>University of Maryland</affiliation>
+  </author>
+</authorgroup>
+
+<copyright>
+  <year>2003</year>
+  <year>2004</year>
+  <year>2005</year>
+  <holder>David H. Hovemeyer, Jeffrey K. Hollingsworth, and Iulian Neamtiu</holder>
+</copyright>
+
+<legalnotice>
+This work is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike License.
+To view a copy of this license, visit
+<ulink url="http://creativecommons.org/licenses/by-nc-sa/1.0/">http://creativecommons.org/licenses/by-nc-sa/1.0/</ulink>
+or send a letter to Creative Commons, 559 Nathan Abbott Way, Stanford, California 94305, USA.
+</legalnotice>
+
+</bookinfo>
+
+<!--
+  <ulink url="mailto:daveho@cs.umd.edu">&lt;daveho@cs.umd.edu&gt;</ulink>
+  <ulink url="mailto:hollings@cs.umd.edu">&lt;hollings@cs.umd.edu&gt;</ulink>
+-->
+
+<!--
+**********************************************************************
+Introduction.
+**********************************************************************
+-->
+
+<chapter id="intro">
+<title>Introduction</title>
+
+<para>
+GeekOS is an educational operating system kernel.
+<!--
+Many educational operating
+systems exist: some of the best known are
+<itemizedlist>
+  <listitem>
+    <para><ulink url="http://www.cs.vu.nl/~ast/minix.html">Minix</ulink>,
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <ulink url="http://www.cs.washington.edu/homes/tom/nachos/">Nachos</ulink>,
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <ulink url="http://www.eecs.harvard.edu/~syrah/os161/">OS/161</ulink>, and
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <ulink url="http://www.tik.ee.ethz.ch/~topsy/">Topsy</ulink>.
+    </para>
+  </listitem>
+</itemizedlist>
+-->
+GeekOS tries to combine realism and simplicity.  It is a realistic
+system because it targets a real hardware platform - the x86 PC.
+It strives for simplicitly in that it contains the bare minimum functionality
+necessary to provide the services of a modern operating system,
+such as virtual memory, a filesystem, and interprocess communication.
+<important>
+<para>
+  This document and the GeekOS distribution are works in progress.
+  At the time of writing (March 3, 2004) this document is about 80% complete,
+  and the GeekOS code is about 95% complete.  We will be filling in
+  the remaining text and code in the near future.  In the meantime,
+  if you have any questions about this manual or about GeekOS itself,
+  please send email to <email>daveho@cs.umd.edu</email>.
+</para>
+</important>
+</para>
+
+<para>
+This document has two purposes.  The first purpose is to give an overview of
+the GeekOS kernel, and to cover the topics needed to read, understand,
+and modify the kernel source code.  The second purpose is to present a
+series of projects in which you can build important new functionality on
+top of the GeekOS kernel.  These projects are suitable for use in a
+senior level undergraduate course, or for self-study.
+</para>
+
+<sect1 id="audience">
+<title>Intended Audience</title>
+
+<para>
+This document is for anyone interested in gaining hands-on experience
+in operating system kernel programming.  Most operating system textbooks
+focus on high level theory and concepts.  This document is intended to
+bridge the gap between those concepts and actual, working kernel code.
+We will try to give you all of the information and background you need
+to start hacking.  In this way, this document complements your operating
+system textbook.
+</para>
+</sect1>
+
+<sect1 id="background">
+<title>Required background</title>
+
+<para>
+Before you start hacking on GeekOS, we assume that you have the 
+following skills and knowledge:
+
+<itemizedlist>
+  <listitem>
+    <para>Basic understanding of what an operating system kernel does</para>
+  </listitem>
+  <listitem>
+    <para>A strong understanding of the C programming language</para>
+  </listitem>
+  <listitem>
+    <para>Experience programming at the system call level in
+     an operating system such as Linux or Windows</para>
+  </listitem>
+  <listitem>
+    <para>Experience programming using threads, such as pthreads or
+    Java threads</para>
+  </listitem>
+  <listitem>
+    <para>Some knowledge of computer architecture and organization</para>
+  </listitem>
+  <listitem>
+    <para>Familiarity with assembly language for some CPU architecture,
+     and a willingness to learn x86 (a.k.a. Intel IA32) assembly language</para>
+  </listitem>
+</itemizedlist>
+</para>
+
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Kernel Hacking 101
+**********************************************************************
+-->
+
+<chapter id="hacking101">
+<title>Kernel Hacking 101</title>
+
+<para>
+GeekOS is an operating system <emphasis>kernel</emphasis>. In many
+respects, it is simply a C program.  It has functions, threads,
+a memory allocator, and so forth.  However, unlike a C program executing
+as a <emphasis>user mode</emphasis> process of a host operating system
+such as Linux or Windows, a kernel operates in <emphasis>kernel mode</emphasis>.
+A program executing in kernel mode has total control over the computer's
+CPU, memory, and hardware devices.
+</para>
+
+<para>
+Writing code to execute in kernel mode presents a few challenges
+that you will need to be aware of.  This chapter presents some
+important tips and techniques that you will need to use as you
+modify the GeekOS kernel.
+</para>
+
+<sect1>
+<title>Kernel Mode Restrictions</title>
+
+<para>
+The runtime environment of the GeekOS kernel has several important
+restrictions you will need to be aware of.
+</para>
+
+<sect2 id="nolibrary">
+<title>Limited Set of Library Functions</title>
+
+<para>
+Because the operating system is that lowest level of software in the
+computer, all functionality used by the kernel must be implemented
+within the kernel.  This is different than for user programs,
+which are generally linked against a set of standard libraries containing
+often-used functions.
+</para>
+
+<para>
+The only standard C library functions available in GeekOS are a subset of
+the string functions (<literal>strcpy()</literal>, <literal>memcpy()</literal>,
+etc.) and the <literal>snprintf()</literal> function.  Prototypes for
+these functions are defined in the header <filename>&lt;geekos/string.h&gt;</filename>.
+</para>
+
+<para>
+In addition to the standard C functions, the GeekOS kernel also contains
+functions which are similar to C library functions.  The <literal>Print()</literal>
+function (prototype in <filename>&lt;geekos/screen.h&gt;</filename>)
+is a subset of the standard C <literal>printf()</literal> function.
+The <literal>Malloc()</literal> and <literal>Free()</literal> functions
+(prototypes in <filename>&lt;geekos/malloc.h&gt;</filename>)
+are equivalent to the <literal>malloc()</literal> and <literal>free()</literal>
+functions.
+</para>
+</sect2>
+
+<sect2 id="limitedstack">
+<title>Limited Stack</title>
+
+<para>
+Each thread in the GeekOS kernel has a 4K stack.  If a thread overflows
+its stack, a kernel crash will generally be the result.  Therefore, you should
+be very careful to conserve stack space:
+<itemizedlist>
+  <listitem>
+    <para>Do not allocate large data structures on the stack.
+     Use the kernel heap allocator (<literal>Malloc()</literal> and
+     <literal>Free()</literal>) instead.</para>
+  </listitem>
+  <listitem>
+    <para>Do not use recursion.  Avoid deep call stacks.</para>
+  </listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+<sect2 id="nomemprot">
+<title>Limited Memory Protection</title>
+<para>
+When the kernel starts executing there is no memory protection;
+every memory access made by the kernel is to real (physical) memory.
+Dereferences of null pointers are not trapped.  For this reason, kernel
+code is more vulnerable to stray pointer references than user code.
+You will need to check your code very carefully to make sure there are no
+memory errors, because they are hard to debug.
+</para>
+
+<para>
+When you add virtual memory to GeekOS (<xref linkend="vmproject"/>),
+the kernel will gain a greater degree of protection for memory errors,
+but you will still need to be careful.
+</para>
+</sect2>
+
+<sect2 id="asyncint">
+<title>Asynchronous Interrupts</title>
+
+<para>
+Many hardware devices use <emphasis>interrupts</emphasis> to notify
+the CPU of important events: the expiration of a timer, the completion
+of an I/O request, etc.  An interrupt is an immediate
+asynchronous transfer of control to an <emphasis>interrupt handler</emphasis>.
+When the handler completes, control returns to the point where execution was interrupted,
+and the original code resumes.  Note that interrupt handlers may cause
+a <emphasis>thread context switch</emphasis>, meaning that other threads
+may execute before control returns to the interrupted thread.
+</para>
+
+<para>
+The practical implications of interrupts are described in <xref linkend="intsandthreads"/>.
+You will want to read this section carefully.
+</para>
+</sect2>
+</sect1>
+
+<sect1 id="practices">
+<title>Recommended Kernel Hacking Practices</title>
+
+<para>
+If you observe the precautions
+described in this document, you will find that programming in kernel
+mode is fairly straightforward.  However, to make your kernel hacking
+experience more pleasant, we strongly encourage you to adopt
+the following habits.
+</para>
+
+<sect2 id="assertions">
+<title>Use Assertions</title>
+<para>
+The header <filename>&lt;geekos/kassert.h&gt;</filename> defines the
+<literal>KASSERT()</literal> macro, which takes a boolean expression.  If the
+expression evaluates to false, the macro prints a message and
+halts the kernel.  Here is an example:
+
+<programlisting>
+void My_Function(struct Thread_Queue *queue)
+{
+    KASSERT(!Interrupts_Enabled()); /* Interrupts must be disabled */
+    KASSERT(queue != 0);            /* queue must not be null */
+    ...
+}
+</programlisting>
+
+As much as possible, you should rigorously use assertions to check
+function preconditions, postconditions, and data structure invariants.
+Assertions have two important benefits.  First, a failed assertion
+immediately and precisely pinpoints a bug in the code, often
+before the kernel state becomes seriously corrupted.  Second, assertions
+help document the code.
+</para>
+</sect2>
+
+<sect2 id="printstatements">
+<title>Use Print Statements</title>
+<para>
+The <filename>&lt;geekos/screen.h&gt;</filename> header defines the
+<literal>Print()</literal> function, which supports much of the functionality
+of the standard C <literal>printf()</literal> function.  Print statements
+are the most useful general technique for debugging kernel code.
+As with any debugging, you should adopt the strategy of forming a hypothesis
+and gathering evidence to support or refute the hypothesis.
+</para>
+</sect2>
+
+<sect2 id="testearly">
+<title>Test Early and Often</title>
+<para>
+To a much greater extent than for user programs, kernel code needs to be
+developed and tested in small pieces.  Whenever you reach a stable
+point in your kernel development, you should commit your work to version
+control.  We strongly recommend that you use <ulink url="http://www.cvshome.org/">CVS</ulink>
+to store your code.
+</para>
+</sect2>
+
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Overview of GeekOS
+**********************************************************************
+-->
+
+<chapter id="overview">
+<title>Overview of GeekOS</title>
+
+<para>
+This chapter presents a high level overview of the GeekOS kernel and
+the subsystems you will use when you add new functionality to GeekOS.
+Once you have read this chapter, you can refer to <xref linkend="apiref"/>
+for detailed descriptions of functions in the GeekOS kernel.
+</para>
+
+<sect1 id="memory">
+<title>Memory</title>
+
+<para>
+The GeekOS kernel manages all memory in the system.  Two types of memory
+can be allocated.
+</para>
+
+<sect2 id="pageallocator">
+<title>Page Allocator</title>
+
+<para>
+All of the memory in the system is divided into chunks called <emphasis>pages</emphasis>.
+In the x86 architecture, the page size is 4K.  A page is a unit of memory
+that can be part of a virtual address space; this characteristic of
+pages will come into play when you add virtual memory to GeekOS
+(<xref linkend="vmproject"/>).  For now, you can just think of pages
+as small fixed size chunks of memory.  Pages are allocated and freed using the
+<literal>Alloc_Page()</literal> and <literal>Free_Page()</literal>
+functions in the <filename>&lt;geekos/mem.h&gt;</filename> header file.
+</para>
+</sect2>
+
+<sect2 id="heapallocator">
+<title>Heap Allocator</title>
+
+<para>
+The heap allocator provides allocation of arbitrary-sized chunks of memory.
+The <literal>Malloc()</literal> function allocates a chunk of memory,
+and the <literal>Free()</literal> function releases a chunk of memory.
+The prototypes for these functions are in the <filename>&lt;geekos/malloc.h&gt;</filename>
+header file.
+</para>
+</sect2>
+</sect1>
+
+<sect1 id="intsandthreads">
+<title>Interrupts and Threads</title>
+
+<para>
+<emphasis>Interrupts</emphasis> and <emphasis>threads</emphasis> are the
+mechanisms used by GeekOS to divide CPU resources between the various tasks
+the operating system performs.  Understanding how interrupts and
+threads interact is crucial to being able to add new functionality to
+the kernel.
+</para>
+
+<sect2 id="interrupts">
+<title>Interrupts</title>
+
+<para>
+<emphasis>Interrupts</emphasis> are used to inform the CPU of the
+occurrence of an important event.  The important characteristic
+of an interrupt is that it causes control to transfer immediately
+to an <emphasis>interrupt handler</emphasis>. Interrupt handlers are
+simply C functions.
+</para>
+
+<para>
+There are several kinds of interrupts:
+
+<itemizedlist>
+  <listitem>
+    <para>
+      <emphasis>Exceptions</emphasis> indicate that the currently executing
+      thread performed an illegal action. They are a form of <emphasis>synchronous</emphasis>
+      interrupt, because they happen in a predictable manner.  Examples include execution of
+      an invalid instruction and attempts to divide by zero.  Exceptions
+      generally kill the thread which raised them, because there is no way
+      to recover from the exception.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <emphasis>Faults</emphasis>, like exceptions, are also synchronous. Unlike
+      exceptions, they are generally recoverable; the kernel can do some work
+      to remove the condition that caused the fault, and then allow the faulting
+      thread to continue executing.  An example is a <emphasis>page fault</emphasis>,
+      which indicates that a page containing a referenced memory location is
+      not currently mapped into the address space.  If the kernel can locate the
+      page and map it back into the address space, the faulting thread can continue
+      executing.  You will learn more about page faults in <xref linkend="vmproject"/>.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <emphasis>Hardware interrupts</emphasis> are used by external hardware
+      devices to notify the CPU of an event.  These interrupts are
+      <emphasis>asynchronous</emphasis>, because they are unpredictable.
+      In other words, an asynchronous interrupt can happen at any time.
+      Sometimes the kernel is in a state where it cannot immediately handle
+      an asynchronous interrupts.  In this case, the kernel can temporarily
+      <emphasis>disable interrupts</emphasis> until it is ready to handle
+      them again.  An example of a hardware interrupt is the
+      <emphasis>timer interrupt</emphasis>.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <emphasis>Software interrupts</emphasis> are used by <emphasis>user mode</emphasis>
+      processes to signal that they require attention from the kernel.  The
+      only kind of software interrupt used in GeekOS is the
+      <emphasis>system call interrupt</emphasis>, which is used by processes
+      to request a service from the kernel.  For example, system calls are
+      used by processes to open files, perform input and output, spawn new processes,
+      etc.
+    </para>
+  </listitem>
+</itemizedlist>
+</para>
+
+<para>
+When an interrupt handler has completed, it returns control to the
+thead which was interrupted at the exact instruction where the interrupt
+occurred.  For the most part, the original thread
+resumes as if the interrupt never happened.
+</para>
+
+<para>
+The occurrence of an interrupt can cause a <emphasis>thread context switch</emphasis>.
+This fact has imporant consequences for code that modifies shared
+kernel data structures, and will be described in detail in
+<xref linkend="interactions"/>.
+</para>
+</sect2>
+
+<sect2 id="threads">
+<title>Threads</title>
+
+<para>
+Threads allow multiple tasks to share the CPU.  In GeekOS, each thread
+is represented by a <literal>Kernel_Thread</literal> object,
+defined in <filename>&lt;geekos/kthread.h&gt;</filename>.
+</para>
+
+<para>
+Threads are selected for execution by the <emphasis>scheduler</emphasis>.
+At any given time, a single thread is executing.  This is the
+<emphasis>current thread</emphasis>, and a pointer to its <literal>Kernel_Thread</literal>
+object is available in the <literal>g_currentThread</literal> global variable.
+Threads that are ready to run, but not currently running, are placed
+in the <emphasis>run queue</emphasis>.  Threads that are waiting for
+a specific event to occur are placed on a <emphasis>wait queue</emphasis>.
+Both the run queue and wait queues are instances of the
+<literal>Thread_Queue</literal> data structure, which is simply a linked
+list of <literal>Kernel_Thread</literal> objects.
+</para>
+
+<para>
+Some threads execute entirely in kernel mode.  These threads are called
+<emphasis>system threads</emphasis>.  System threads are used to perform
+demand-driven tasks within the kernel.  For example, a system thread called
+the <emphasis>reaper thread</emphasis> is used to free the resources of
+threads which have exited.  The floppy and IDE disk drives each use a
+system thread to wait for I/O requests, perform them, and communicate
+the results back to the requesting threads.
+</para>
+
+<para>
+In contrast to system threads, <emphasis>processes</emphasis> spend most of their
+time executing in <emphasis>user mode</emphasis>.  Processes should be
+familiar to you already; when you run an ordinary program in an operating
+system like Linux or Windows, the system creates a process to execute
+the program.  Each process consists of a <emphasis>memory space</emphasis>
+reserved for the exclusive use of the running program, as well as other
+resources like files and semaphores.
+</para>
+
+<para>
+In GeekOS, a process is simply a <literal>Kernel_Thread</literal> which has
+a special data structure attached to it.  This data structure is the
+<literal>User_Context</literal>.  It contains all of the memory and other
+resources allocated to the process.  Because processes are just ordinary
+threads which have the capability of executing in user mode, they are
+sometimes referred to in GeekOS as <emphasis>user threads</emphasis>.
+</para>
+
+<para>
+Processes start out executing in user mode.  However, interrupts
+occurring while the process is executing in user mode cause the
+process to switch back into kernel mode.  When the interrupt handler
+returns, the process resumes executing in user mode.
+</para>
+</sect2>
+
+<sect2 id="threadsync">
+<title>Thread Synchronization</title>
+
+<para>
+GeekOS provides a high level mechanism to synchronize threads:
+<emphasis>mutexes</emphasis> and <emphasis>condition variables</emphasis>.
+(The mutex and condition variable implementation in GeekOS is modeled
+on the pthreads API, so if you have some any pthreads programming,
+this section should seem very familiar.)  Mutexes and condition
+variables are defined in the <filename>&lt;geekos/synch.h&gt;</filename>
+header file.
+
+<important>
+  <para>
+    Mutexes and condition variables may only be used to synchronize threads.
+    It is not legal to access a mutex or condition variable from an
+    handler for an asynchronous interrupt.
+  </para>
+</important>
+</para>
+
+<para>
+<emphasis>Mutexes</emphasis> are used to guard <emphasis>critical sections</emphasis>.
+A mutex ensures MUTual EXclusion within a critical section guarded by the
+mutex; only one thread is allowed to hold a mutex at any given time.
+If a thread tries to acquire a mutex that is already held by another
+thread, it is suspended until the mutex is available.
+</para>
+
+<para>
+Here is an example of a function that atomically adds a node to a list:
+<programlisting>
+#include &lt;geekos/synch.h&gt;
+
+struct Mutex lock;
+struct Node_List nodeList;
+
+void Add_Node(struct Node *node) {
+    Mutex_Lock(&amp;lock);
+    Add_To_Back_Of_Node_List(&amp;nodeList, node);
+    Mutex_Unlock(&amp;lock);
+}
+</programlisting>
+</para>
+
+<para>
+<emphasis>Condition variables</emphasis> represent a condition that threads
+can wait for.  Each condition variable is associated with a mutex,
+which must be held while accessing the condition variable and when inspecting
+or modifying the program state associated with the condition.
+</para>
+
+<para>
+Here is an elaboration of the earlier example that allows threads
+to wait for a node to become available in the node list:
+<programlisting>
+#include &lt;geekos/synch.h&gt;
+
+struct Mutex lock;
+struct Condition nodeAvail;
+struct Node_List nodeList;
+
+void Add_Node(struct Node *node) {
+    Mutex_Lock(&amp;lock);
+    Add_To_Back_Of_Node_List(&amp;nodeList, node);
+    Cond_Broadcast(&amp;nodeAvail);
+    Mutex_Unlock(&amp;lock);
+}
+
+struct Node *Wait_For_Node(void) {
+    struct Node *node;
+
+    Mutex_Lock(&amp;lock);
+    while (Is_Node_List_Empty(&amp;nodeList)) {
+        /* Wait for another thread to call Add_Node() */
+        Cond_Wait(&amp;nodeAvail, &amp;lock);
+    }
+    node = Remove_From_Front_Of_Node_List(&amp;nodeList);
+    Mutex_Unlock(&amp;lock);
+
+    return node;
+}
+</programlisting>
+</para>
+
+</sect2>
+
+<sect2 id="interactions">
+<title>Interactions between Interrupts and Threads</title>
+
+<para>
+The GeekOS kernel is <emphasis>preemptible</emphasis>.  This means that,
+in general, a <emphasis>thread context switch</emphasis> can occur at any time.
+Choosing which thread to execute at a preemption point is the job
+of the <emphasis>scheduler</emphasis>.  In general, the scheduler will
+choose the task which has the highest <emphasis>priority</emphasis>
+and is ready to execute.
+</para>
+
+<para>
+The main cause of asynchronous (involuntary) threads switches is the
+timer interrupts, which the kernel uses to ensure that no single
+thread can completely monopolize the CPU.  However, other hardware interrupts
+(such as the floppy disk interrupt) can also cause asynchronous thread switches.
+Threads often need to modify data structures shared by other threads
+and/or interrupt handler functions.  If a thread switch were to occur
+in the middle of an operation modifying a shared data structure, the data
+structure could be left in an inconsistent state, leading to a
+kernel crash or other unpredictable behavior.
+</para>
+
+<para>
+Fortunately, it is easy to temporarily disable preemption by
+<emphasis>disabling interrupts</emphasis>.  This is done by calling
+the <literal>Disable_Interrupts()</literal> function
+(prototype in <filename>&lt;geekos/int.h&gt;</filename>).
+After this function is called, the processor ignores
+all external hardware interrupts.  While interrupts are disabled,
+the current thread is guaranteed to retain control of the CPU:
+no other threads or interrupt handlers will execute.
+When the thread is ready to re-enable preemption, it can call
+<literal>Enable_Interrupts()</literal>.
+</para>
+
+<para>
+There are a variety of situations when interrupts should be disabled.
+Generally, disabling interrupts can be used to make any sequence
+of instructions <emphasis>atomic</emphasis>; this means that the
+entire sequence of instructions is guaranteed to complete as a unit,
+without interruption.
+</para>
+
+<para>
+The most important specific situation when interrupts should be disabled
+is when a scheduler data structure is modified.  A typical example is
+putting the current thread on a <emphasis>wait queue</emphasis>.  Here is an
+example:
+<programlisting>
+/* Wait for an event */
+Disable_Interrupts();
+while (!eventHasOccurred) {
+    Wait(&amp;waitQueue);
+}
+Enable_Interrupts();
+</programlisting>
+In this example, a thread is waiting for the occurrence of an asynchronous
+event.  Until the event occurs, it will suspend itself by waiting on
+a wait queue.  When the event occurs, the interrupt handler for the event
+will set the <literal>eventHasOccurred</literal> flag and move the
+thread from the wait queue to the run queue.
+</para>
+
+<para>
+Consider what could happen if interrupts were <emphasis>not</emphasis>
+disabled in the example above.  First, the interrupt handler for the event
+could occur between the time <literal>eventHasOccurred</literal> is checked
+and when the calling thread puts itself on the wait queue.  This might
+result in the thread waiting forever, even though the event it is waiting
+for has already occurred.  A second possibility is that a thread switch
+might occur while the thread is adding itself to the wait queue.
+The handler for the interrupt causing the thread switch will place the
+current thread on the run queue, <emphasis>while the wait queue is in 
+a modified (inconsistent) state</emphasis>.  Any code accessing the
+wait queue (such as an interrupt handler or another thread)
+might cause the system to crash.
+</para>
+
+<para>
+Fortunately, (almost) all functions in GeekOS that need to be called with
+interrupts disabled contain an assertion that will inform you immediately
+if they are called with interupts enabled.  You will see many
+places in the code that look like this:
+<programlisting>
+KASSERT(!Interrupts_Enabled());
+</programlisting>
+These statements indicate that interrupts must be disabled in order
+for the code immediately following to execute.
+Knowing when interrupts need to be disabled is a bit tricky
+at first, but you will soon get the hang of it.
+</para>
+
+<para>
+One final caveat: regions of code which explicitly disable interrupts
+cannot be nested.  Another way to put this is that it is illegal to
+call <literal>Disable_Interrupts()</literal> when interrupts are
+already disabled, and it is illegal to call <literal>Enabled_Interrupts()</literal>
+when interrupts are already enabled.  Consider the following code:
+<programlisting>
+void f(void) {
+    Disable_Interrupts();
+    g();
+    ... modify shared data structures ...
+    Enable_Interrupts();
+}
+
+void g(void) {
+    Disable_Interrupts();
+    ...
+    Enable_Interrupts();
+}
+</programlisting>
+This code, if allowed to execute, would contain a bug.  If the function
+<literal>g()</literal> returned with interrupts enabled, a context switch
+in function <literal>f()</literal> could interrupt a modification to
+a shared data structure, leaving it in an inconsistent state.
+Fortunately, there is a simple way to write code that will selectively
+disable interrupts if needed:
+<programlisting>
+bool iflag;
+
+iflag = Begin_Int_Atomic();
+... interrupts are disabled ...
+End_Int_Atomic(iflag);
+</programlisting>
+Sections of code that use <literal>Begin_Int_Atomic()</literal> and
+<literal>End_Int_Atomic()</literal> may be nested safely.
+</para>
+</sect2>
+
+</sect1>
+
+<sect1 id="devices">
+<title>Devices</title>
+
+<para>
+The GeekOS kernel contains <emphasis>device drivers</emphasis> for
+several important hardware devices.
+</para>
+
+<sect2 id="screen">
+<title>Text Screen</title>
+
+<para>
+The text screen provides support for displaying text.  The screen
+driver in GeekOS emulates a subset of VT100 and ANSI escape codes
+for cursor movement and setting character attributes.  Text screen
+services are provided in the <filename>&lt;geekos/screen.h&gt;</filename>
+header file.
+</para>
+
+<para>
+The main function you will use in sending output to the screen is
+the <literal>Print()</literal> function, which supports a subset of the
+functionality of the standard C <literal>printf()</literal> function.
+Low level screen output is provided by the <literal>Put_Char()</literal>
+and <literal>Put_Buf()</literal> functions, which write a single character
+and a sequence of characters to the screen, respectively.
+</para>
+</sect2>
+
+<sect2 id="keyboard">
+<title>Keyboard</title>
+
+<para>
+The keyboard device driver provides a high level interface to the
+keyboard.  It installs an interrupt handler for keyboard events,
+and translates the low level key scan codes to higher level codes
+that contain ASCII character codes for pressed keys, as well as
+modifier information (whether shift, control, and/or alt are pressed).
+The header for for the keyboard services is <filename>&lt;geekos/keyboard.h&gt;</filename>.
+</para>
+
+<para>
+Threads can wait for a key event by calling the <literal>Wait_For_Key()</literal>
+function.  Key codes are returned using the <literal>Keycode</literal> datatype,
+which is a 16 bit unsigned integer.  The low 10 bits of the keycode indicate
+which physical key was pressed or released.  Several flag bits are used:
+<itemizedlist>
+  <listitem>
+    <para>
+      <literal>KEY_SPECIAL_FLAG</literal> is set for keys that do not
+      have an ASCII representation.  For examples, function keys and
+      cursor keys call into this category.  If this flag is <emphasis>not</emphasis>
+      set, then the low 8 bits of the key code contain the ASCII code.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <literal>KEY_KEYPAD_FLAG</literal> is set for keys on the numeric keypad.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <literal>KEY_SHIFT_FLAG</literal> is set if one of the shift keys is
+      currently pressed.  For alphabetic keys, this will cause the ASCII code
+      to be upper case.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <literal>KEY_CTRL_FLAG</literal> and <literal>KEY_ALT_FLAG</literal>
+      are set to indicate that the control and alt keys are pressed,
+      respectively.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+      <literal>KEY_RELEASE_FLAG</literal> is set for key release events.
+      You will probably want to ignore key events that have this flag set.
+    </para>
+  </listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+<sect2 id="timer">
+<title>System Timer</title>
+
+<para>
+The system timer is used to provide a periodic timeslice interrupt.
+After the current thread has been interrupted a set number of times
+by the timer interrupt, the scheduler is invoked to choose a new thread.
+You will generally not need to use any timer services directly.
+However, it is worth noting that the system timer is the mechanism used
+to ensure that all threads have a chance to execute by preventing any
+single thread from monopolizing the CPU.
+</para>
+</sect2>
+
+<sect2 id="blockdevs">
+<title>Block Devices: Floppy and IDE Disks</title>
+</sect2>
+
+<para>
+<emphasis>Block devices</emphasis> are the abstraction used to represent
+storage devices: i.e., disks.  They are called block devices because they
+are organized as a sequence of fixed size blocks called <emphasis>sectors</emphasis>.
+Block device services are defined in the <filename>&lt;geekos/blockdev.h&gt;</filename>
+header file.
+</para>
+
+<para>
+Although real block devices often have varying sector sizes, GeekOS makes
+the simplifying assumption that all block devices have a fixed sector size
+of 512 bytes.  This is the value defined by the <literal>SECTOR_SIZE</literal>
+macro.
+</para>
+
+<para>
+GeekOS supports two kinds of block devices: <emphasis>floppy drives</emphasis>
+and <emphasis>IDE disk drives</emphasis>.  A naming scheme is used to 
+identify particular drives attached to the system:
+<itemizedlist>
+  <listitem><para><literal>fd0</literal>: the first floppy drive</para></listitem>
+  <listitem><para><literal>ide0</literal>: the first IDE disk drive</para></listitem>
+  <listitem><para><literal>ide1</literal>: the second IDE disk drive</para></listitem>
+</itemizedlist>
+A particular instance of a block device is represented in the kernel by
+the <literal>Block_Device</literal> data structure.  You can retrieve a
+block device object by passing its name to the <literal>Open_Block_Device()</literal>
+function.  Once you have the block device object, you can read and write
+particular sectors using the <literal>Block_Read()</literal> and
+<literal>Block_Write()</literal> functions.
+</para>
+
+<para>
+Block devices are used as the underlying storage for <emphasis>filesystems</emphasis>.
+A filesystem builds higher level abstractions (files and directories)
+on top of the raw block storage offered by block devices.  In
+<xref linkend="fsproject"/>, you will implement a filesystem using
+an underlying block device.
+</para>
+
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Overview of the Projects
+**********************************************************************
+-->
+
+<chapter id="projectoverview">
+<title>Overview of the Projects</title>
+
+<para>
+This chapter gives a brief overview of the projects in which you will add
+important new functionality to the GeekOS kernel.  It also discusses
+all of the requirements for compiling and running GeekOS.
+</para>
+
+<sect1 id="projectsbrief">
+<title>Project Descriptions</title>
+<para>
+There are a total of seven projects.  For the most part, each project builds
+on the one before it, so you will need to do them in order.
+The projects were originally developed as part of a senior
+level undergraduate operating systems course, so
+the complete sequence will require a significant amount of effort to
+complete.  Some projects will be more
+difficult than others; in particular, the virtual memory project
+(<xref linkend="vmproject"/>) and the filesystem project (<xref linkend="fsproject"/>)
+require you to write a fairly large amount of code (several hundred to
+a thousand lines of code for each project).  The good news is that when
+you complete the last project, GeekOS will be a functional operating
+system, capable of running multiple process with full memory protection.
+</para>
+
+<para>
+Project 0 (<xref linkend="introproject"/>) serves as an introduction to
+modifying, building, and running GeekOS.  You will add a  kernel
+thread to read keys from the keyboard and echo them to the screen.
+</para>
+
+<para>
+For Project 1 (<xref linkend="elfparsingproject"/>), you become
+familiar with the structure of an executable file. You are provided
+with code for loading and running executable files, but you need to
+first become familiar with the ELF file format, then write code to 
+parse the provided file and pass it to the loader.
+</para>
+
+<para>
+In Project 2 (<xref linkend="usermodeproject"/>), you will add
+support for <emphasis>user mode processes</emphasis>.  Rather than using
+virtual memory to provide separate user address spaces, this project
+uses <emphasis>segmentation</emphasis>, which is simpler to understand.
+</para>
+
+<para>
+Project 3 (<xref linkend="schedulingproject"/>) improves the GeekOS scheduler
+and adds support for semaphores to coordinate multiple processes.
+</para>
+
+<para>
+Project 4 (<xref linkend="vmproject"/>) replaces the segmentation based
+user memory protection added in Project 1 with paged virtual memory.
+Pages of memory can be stored on disk in order to free up RAM when
+the demand for memory exceeds the amount available.
+</para>
+
+<para>
+Project 5 (<xref linkend="fsproject"/>) adds a hierarchical read/write
+filesystem to GeekOS.
+</para>
+
+<para>
+Project 6 (<xref linkend="ipcproject"/>) adds access control lists
+(ACLs) to the filesystem, and adds interprocess communication using
+anonymous half-duplex pipes.  Upon the completion of this project, GeekOS will
+resemble a very simple version of Unix.
+</para>
+</sect1>
+
+<sect1 id="requiredsoftware">
+<title>Required Software</title>
+
+<para>
+Compiling GeekOS requires a number of tools.  The good news is that if you
+are running on a Linux/x86 or FreeBSD/x86 system, or if you are
+running <ulink url="http://cygwin.com/">Cygwin</ulink> on Windows, you probably have
+most or all of the software you need to compile GeekOS already installed.
+If you don't, it is generally not too difficult to obtain the required
+software.
+</para>
+
+<para>
+The following is a complete list of software needed to compile GeekOS.
+<itemizedlist>
+<listitem><para><ulink url="http://gcc.gnu.org/">gcc</ulink>, version 2.95.2 or later,
+  targeting any i386/ELF platform, or targeting PECOFF under Cygwin</para></listitem>
+<listitem><para>Any ANSI-compliant C compiler for the host platform (the computer
+  you are planning to compile GeekOS on); unless you are cross-compiling,
+  this can be the same compiler you use to compile GeekOS</para></listitem>
+<listitem><para><ulink url="http://www.gnu.org/software/binutils/">GNU binutils</ulink>,
+  targeting any i386/ELF platform, or PECOFF under Cygwin; you probably already have this if you
+  have gcc</para></listitem>
+<listitem><para><ulink url="http://www.gnu.org/software/make/">GNU Make</ulink>; the GeekOS
+  makefile will not work with other versions of make</para></listitem>
+<listitem><para><ulink url="http://www.perl.org/">Perl</ulink>, version 5 or
+  later</para></listitem>
+<listitem><para><ulink url="http://www.gnu.org/software/grep/grep.html">egrep</ulink></para></listitem>
+<listitem><para><ulink url="http://www.gnu.org/software/gawk/">AWK</ulink></para></listitem>
+<listitem><para><ulink url="http://www.gnu.org/software/diffutils/">diff3</ulink></para></listitem>
+<listitem><para><ulink url="http://nasm.sourceforge.net/">NASM</ulink>; on Linux or
+  FreeBSD systems, this is probably the only required software not already installed</para></listitem>
+<!--
+<listitem><para></para></listitem>
+-->
+</itemizedlist>
+</para>
+
+</sect1>
+
+<sect1 id="installing">
+<title>Setting Up the GeekOS Distribution</title>
+
+<para>
+Before you get started, you should choose a directory in which to install
+the GeekOS distribution.
+<note>
+  <para>
+  This document assumes that you are using a Unix-like system such as Linux,
+  FreeBSD, or MacOS/X, and that you are using the <ulink url="http://www.gnu.org/software/bash/">bash</ulink>
+  shell, or a similar shell such as the Bourne (/bin/sh) or Korn (/bin/ksh) shells.
+  </para>
+</note>
+</para>
+
+<para>
+A GeekOS distribution is a file whose name
+looks like <filename>geekos-<replaceable>version</replaceable>.tar.gz</filename>.
+For example, let's say you are using GeekOS version 0.2.0, that you have
+downloaded the GeekOS distribution to the directory
+<replaceable>/home/fred</replaceable>, and that you want to install the
+distribution in the directory <replaceable>/home/fred/software</replaceable>.
+In this case, you would install the source distribution using the following commands:
+<screen>
+<prompt>$ </prompt><command>cd /home/fred/software</command>
+<prompt>$ </prompt><command>gunzip -c /home/fred/geekos-0.2.0.tar.gz | tar xvf -</command>
+<prompt>$ </prompt><command>GEEKOS_HOME=/home/fred/software/geekos-0.2.0</command>
+<prompt>$ </prompt><command>export GEEKOS_HOME</command>
+<prompt>$ </prompt><command>PATH=$GEEKOS_HOME/bin:$PATH</command>
+<prompt>$ </prompt><command>export PATH</command>
+</screen>
+</para>
+</sect1>
+
+<sect1 id="extracting">
+<title>Starting a Project</title>
+
+<para>
+Once you have installed the GeekOS distribution and all of the software
+required to compile it, you are ready to extract Project 0.
+Let's say you have chosen the directory <replaceable>/home/fred/work</replaceable>
+to contain the working directory for your project.
+Then you would run the following command:
+<screen>
+<prompt>$ </prompt><command>cd /home/fred/work</command>
+<prompt>$ </prompt><command>startProject project0</command>
+</screen>
+This will create a directory <replaceable>/home/fred/work/project0</replaceable>
+containing the GeekOS source code, ready for you to start hacking.
+<important>
+  <para>
+  It is an extremely good idea to use <ulink url="http://www.cvshome.org/">CVS</ulink> or a similar
+  version control system to store your project files.  Each time you reach
+  a stable point in your project, commit the source files.  That way,
+  you will always be able to revert to a stable version if something
+  goes wrong with your code.
+  </para>
+</important>
+</para>
+</sect1>
+
+<sect1 id="transition">
+<title>Continuing to a New Project</title>
+<para>
+Each project contains a slightly different version of the base GeekOS
+system.  For example, the buffer cache system is introduced in the
+fourth project because it is required by the filesystem.
+Also, code is sometimes removed because it is no longer needed.
+</para>
+
+<para>
+To make it easy for you to move your code from one project to the next,
+the <filename>startProject</filename> script can automatically merge
+your code from the previous project into the code for the new project.
+For example, let's say you have completed Project 0 and are ready
+to move onto Project 1.  You would run the following commands:
+<screen>
+<prompt>$ </prompt><command>cd /home/fred/work</command>
+<prompt>$ </prompt><command>startProject project1 project0</command>
+</screen>
+</para>
+
+<para>
+Although the process of incorporating your old code into the new project is
+largely automatic, you will sometimes see messages like the following:
+<screen>
+Warning: Conflicts detected in merge of file src/geekos/main.c
+</screen>
+When you look at the file in the new project directory that was reported
+to contain a merge conflict, you will see something like the following:
+<screen>
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; Your version of src/geekos/main.c
+=======
+static void Mount_Filesystems(void);
+static void Spawn_Init_Process(void);
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; Master version of src/geekos/main.c from project1
+</screen>
+In this case, two function prototypes were added to the source
+file <filename>src/geekos/main.c</filename>.
+</para>
+
+<para>
+In general, you should resolve conflicts by simply deleting the conflict
+markers (the lines reading "&lt;&lt;&lt;&lt;&lt;&lt;&lt;", "=======",
+and "&gt;&gt;&gt;&gt;&gt;&gt;&gt;").  This will have the effect of including
+the code from both your previous project and the new code from the master source
+for the new project.  Sometimes you will need to comment out code from
+your previous project that will not be needed in the new project.
+</para>
+
+<para>
+When you have removed all of the conflict markers, you can start working
+on getting the project to compile.  Once the code compiles, you
+can start working on adding the new features that the project requires. 
+</para>
+</sect1>
+
+<sect1 id="compiling">
+<title>Compiling a Project</title>
+
+<para>
+Once you have used the <filename>startProject</filename> script to
+create a working directory for a project, and you have installed all of the
+software required to compile GeekOS, it should be a simple matter
+to compile the project.  Let's say you are going to compile
+Project 1.  Here are the commands you would use:
+<screen>
+<prompt>$</prompt> <command>cd /home/fred/work/project1/build</command>
+<prompt>$</prompt> <command>make depend</command>
+<prompt>$</prompt> <command>make</command>
+</screen>
+</para>
+</sect1>
+
+<sect1 id="running">
+<title>Running GeekOS Using Bochs</title>
+
+<para>
+Although GeekOS targets a real hardware platform, it is intended to be
+run in the <ulink url="http://bochs.sourceforge.net/">Bochs</ulink> PC emulator.
+Bochs runs as an ordinary user process in your host operating system,
+and is available for most common operating systems.
+We recommend that you use Bochs version 2.0 or later; as of the time
+of this writing, the latest version of Bochs is 2.1.1, which
+works well with GeekOS.
+</para>
+
+<para>
+Once you have installed Bochs, you will need to edit the file
+<filename>build/.bochsrc</filename> in the working directory
+for your project.  In this file, you will see two entries that
+look like the following:
+<programlisting>
+# You will need to edit these lines to reflect your system.
+vgaromimage: /software/bochs-2.0.2/share/bochs/VGABIOS-lgpl-latest
+romimage: file=/software/bochs-2.0.2/share/bochs/BIOS-bochs-latest, address=0xf0000
+</programlisting>
+You should change the lines beginning <literal>vgaromimage</literal>
+and <literal>romimage</literal> so that they reflect the directory
+in which you installed Bochs.  For example, if you installed Bochs
+in the directory <filename>/usr/local/bochs-2.1</filename>,
+you should replace the occurrences of <filename>/software</filename>
+with <filename>/usr/local/bochs-2.1</filename>.
+</para>
+
+<para>
+After editing the <filename>.bochsrc</filename> file, you are ready to
+start bochs.  Add the directory containing the <filename>bochs</filename>
+executable to your <literal>PATH</literal> environment, and then
+invoke the <filename>bochs</filename> command from within the
+<filename>build</filename> directory of the project.  You be prompted
+with a set of options.  Choose <literal>Begin simulation</literal>,
+or simply hit the <keycap>Enter</keycap> or <keycap>Return</keycap> key
+to choose the default.
+</para>
+
+<para>
+If GeekOS has been compiled successfully, and Bochs is configured
+properly, a window should appear emulating the VGA text screen.
+You are now running GeekOS!
+</para>
+</sect1>
+
+<sect1 id="troubleshooting">
+<title>Troubleshooting</title>
+
+<para>
+If GeekOS does not run correctly, look at the file <filename>bochs.out</filename>
+produced in the <filename>build</filename> directory of the project.
+If errors prevented Bochs from running, or if GeekOS crashed, this
+file will usually contain diagnostic information which identifies the
+problem.
+</para>
+</sect1>
+
+<sect1 id="hints">
+<title>Project Hints</title>
+
+<para>
+Every project contains placeholders indicating where you need to add
+code.  These placeholders use the <literal>TODO</literal> macro.
+Here is an example from Project 0:
+<programlisting>
+TODO("Start a kernel thread to echo pressed keys");
+</programlisting>
+These placeholders are often accompanied by a comment giving
+you ideas about how to approach the new functionality that
+needs to be added.
+</para>
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 0: Getting Started to GeekOS
+**********************************************************************
+-->
+
+<chapter id="introproject">
+<title>Project 0: Getting Started</title>
+
+<para>
+The purpose of this project is to introduce you to working with
+the GeekOS source code and running GeekOS in the Bochs emulator.
+</para>
+
+<sect1 id="project0_assignment">
+<title>The Assignment</title>
+
+<para>
+Add code to the kernel to create a new kernel mode thread.
+The kernel mode thread should print out "Hello from xxx" where xxx is your
+name.  It should then call the keyboard input routine <literal>Wait_For_Key()</literal> repeatly
+(and echo each character entered) until the termination character
+(control-d) is entered.
+</para>
+</sect1>
+
+<sect1 id="project0_hints">
+<title>Hints</title>
+<para>
+<itemizedlist>
+  <listitem>
+    <para>
+   This project will not require much code to be written.
+   However, it may take some time to get things set up and debugged.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+    Execution of the GeekOS kernel begins in the <literal>Main()</literal>
+    function in the source file <filename>src/geekos/main.c</filename>.
+    </para>
+  </listitem>
+  <listitem>
+    <para>
+    To start a new kernel mode thread you use the
+    <literal>Start_Kernel_Thread()</literal> function.  Look at the comments
+    before the definition of this function in <filename>src/geekos/kthread.c</filename>.
+    </para>
+  </listitem>
+<!--
+  <listitem>
+    <para>
+    </para>
+  </listitem>
+-->
+</itemizedlist>
+</para>
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 1: Loading Executable Files
+**********************************************************************
+-->
+
+<chapter id="elfparsingproject">
+<title>Project 1: Loading Executable Files</title>
+
+<sect1 id="project1_intro">
+<title>Introduction</title>
+
+<para>
+In this project you will write code to parse an executable file in ELF
+format and pass the result of the parsing to a program laoder we provide.
+</para>
+</sect1>
+
+<sect1 id="project1_requiredreading">
+<title>Required Reading</title>
+
+<para>
+This project will require you to understand
+the ELF executable format.
+</para>
+
+<para>
+You will need to read the
+<ulink url="http://www.x86.org/ftp/manuals/tools/elf.pdf">ELF Executable Format</ulink>
+documentation.  In this project, you will need to be able to parse the
+ELF <emphasis>program headers</emphasis> in order to find out how to
+load an executable file's text (code) and data into process memory.
+</para>
+</sect1>
+
+<sect1 id="project1_synopsis">
+<title>Project Synopsis</title>
+
+<para>
+This project will require you to change the <filename>src/geekos/elf.c</filename>.
+Your only task is to implement the
+<literal>Parse_ELF_Executable()</literal> function.  This involves
+reading the program headers of an ELF executable to find the
+file offset, length, and user address for the executable's
+text and data segments.  Based on this information, you should
+fill in the <literal>Exe_Format</literal> data structure passed
+as a parameter.  This data structure will be used by the loader to
+determine how to load the executable. The loader is already implemented for you.
+</para>
+
+</sect1>
+
+<sect1 id="project1_exeloading">
+<title>Loading the Executable</title>
+
+<para>
+GeekOS, like other operating systems, uses files to store executable programs.
+These files are in ELF format.  We have provided you with a simple read-only
+filesystem for this project, plus a test file that you will load.
+The test file is <filename>src/user/a.c</filename>, and after
+compilation and building, GeekOS will see it as
+<filename>/c/a.exe</filename>.
+When GeekOS boots up, it reads <filename>/c/a.exe</filename> into
+memory, calls your parsing code from
+<literal>Parse_ELF_Executable()</literal>
+and starts a kernel-mode thread that will run the
+<filename>a.exe</filename> code.
+</para>
+
+<para>
+Loading ELF executables is fairly straightforward.  You will need to
+locate the ELF program headers.  These headers will describe the executable's
+<emphasis>text</emphasis> and <emphasis>data</emphasis> segments.
+<footnote>
+Note: in the context of the ELF format, "segment" simply refers
+to a region of the executable file that is loaded into memory.
+It has nothing to do with segments used by the CPU.
+</footnote>
+As you parse the ELF executable, you will fill in the fields of
+an <literal>Exe_Format</literal> data structure, which is a high level
+representation of how to load data from the executable file into
+memory.
+</para>
+
+</sect1>
+
+<sect1 id="project1_testing">
+<title>Testing Your Project</title>
+
+<para>
+If you've done everthying correctly, when you start Bochs you should see this output:
+<screen>
+Hi ! This is the first string
+Hi ! This is the second string
+Hi ! This is the third (and last) string
+If you see this you're happy
+</screen>
+
+</para>
+
+</sect1>
+
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 2: Adding Processes
+**********************************************************************
+-->
+
+<chapter id="usermodeproject">
+<title>Project 2: Adding Processes</title>
+
+<sect1 id="project2_intro">
+<title>Introduction</title>
+
+<para>
+In this project you will extend the GeekOS operating system to include
+user mode processes and system calls.
+</para>
+</sect1>
+
+<sect1 id="project2_requiredreading">
+<title>Required Reading</title>
+
+<para>
+This project will make extensive use of systems programming features of
+the x86 (a.k.a. IA32) CPU architecture.  It will also require you to understand
+the ELF executable format.
+</para>
+
+<para>
+The Intel IA32 Architecture Manuals are the definitive reference for
+programming x86 CPUs.  You can find them at the
+<ulink url="http://www.intel.com/">Intel website</ulink>; the order
+numbers for the set are 253665 (Volume 1, Basic Architecture),
+253666 and 253667 (Volumes 2A and 2B, Instruction Set Reference),
+and 253668 (Volume 3, System Programming Guide).  For this project,
+you will need to understand <emphasis>segments</emphasis> and
+<emphasis>local descriptor tables</emphasis>.  These are described in
+Volume 3.   You will want to read Volume 3, Chapter 3 carefully
+to understand how segments work.
+</para>
+
+<para>
+You might need to revise some information in 
+<ulink url="http://www.x86.org/ftp/manuals/tools/elf.pdf">ELF Executable Format</ulink>
+documentation, since you'll reuse ELF parsing from <xref linkend="elfparsingproject"/>.
+</para>
+</sect1>
+
+<sect1 id="project2_synopsis">
+<title>Project Synopsis</title>
+
+<para>
+This project will require you to make changes to several files.
+In general, look for the calls to the <literal>TODO()</literal> macro.
+These are places where you will need to add code, and they
+will generally contain a comment giving you some hints on how
+to proceed.
+</para>
+
+<para>
+In <filename>src/geekos/user.c</filename>, you will implement the functions
+<literal>Spawn()</literal>, which starts a new user process, and
+<literal>Switch_To_User_Context()</literal>, which is called by the
+scheduler before executing a thread in order to switch user address spaces
+if required.
+</para>
+
+<para>
+In <filename>src/geekos/elf.c</filename>, you will implement the
+<literal>Parse_ELF_Executable()</literal> function.  This involves
+reading the program headers of an ELF executable to find the
+file offset, length, and user address for the executable's
+text and data segments.  Based on this information, you should
+fill in the <literal>Exe_Format</literal> data structure passed
+as a parameter.  This data structure will be used by the <literal>Spawn()</literal>
+function to determine how to load the executable.
+</para>
+
+<para>
+In <filename>src/geekos/userseg.c</filename>, you will implement functions
+which provide support for the high level operations in <filename>src/geekos/user.c</filename>.
+<literal>Destroy_User_Context()</literal> frees the memory resources used
+by a user process.  <literal>Load_User_Program()</literal> builds the
+<literal>User_Context</literal> structure for a new process by loading parts
+of the executable program into memory.  The <literal>Copy_From_User()</literal>
+and <literal>Copy_To_User()</literal> functions copy data between the
+user address space and the kernel address space.  The <literal>Switch_To_Address_Space()</literal>
+function activates a user address space by loading the processor's LDT register
+with the LDT of a process.
+</para>
+
+<para>
+In <filename>src/geekos/kthread.c</filename>, you will implement functions
+which take a completed <literal>User_Context</literal> data structure
+and create a thread which is ready to execute in user mode.
+The <literal>Setup_User_Thread()</literal> function sets up the initial
+kernel stack for the process, which specifies the initial contents
+of the processor registers when the process enters user mode for the
+first time.  <literal>Start_User_Thread()</literal> is a higher level
+operation which takes a <literal>User_Context</literal> object and uses
+it to start the new process.
+</para>
+</sect1>
+
+
+<sect1 id="project2_usingsegmentation">
+<title>Using Segmentation</title>
+
+<para>
+To implement memory protection for user processes, this project uses
+<emphasis>segmentation</emphasis>.  With segmentation, each process
+resides in a single physically contiguous chunk of memory.
+You can allocate this chunk of memory using the <filename>Malloc()</filename>
+function.
+</para>
+
+<para>
+In order to provide a private address space, you will need to create
+<emphasis>segments</emphasis> for code and data of the process.
+Both segments will refer to the single memory chunk you have
+allocated for the process.  The segments will reside in the
+<emphasis>local descriptor table</emphasis> (LDT) that you will
+create for the process.  In the LDT, you will define <emphasis>segment descriptors</emphasis>
+that define the process code and data segments.  Both of these should
+be created at the user privilege level: this will have the effect of
+that the process will only be able to access the memory in the
+segments you define in the LDT.
+</para>
+
+<para>
+Here is a general list of steps you will need to follow in order
+to set up the segments and LDT for a process:
+<orderedlist>
+  <listitem>
+    <para> Create an LDT descriptor by calling the routine <literal>Allocate_Segment_Descriptor()</literal> </para>
+  </listitem>
+  <listitem>
+    <para> Create an LDT selector by calling the routine <literal>Selector()</literal> </para>
+  </listitem>
+  <listitem>
+    <para> Create a text segment descriptor by calling <literal>Init_Code_Segment_Descriptor()</literal> </para>
+  </listitem>
+  <listitem>
+    <para> Create a data segment descriptor by calling <literal>Init_Data_Segment_Descriptor()</literal> </para>
+  </listitem>
+  <listitem>
+    <para> Create an data segment selector by calling the routine <literal>Selector()</literal> </para>
+  </listitem>
+  <listitem>
+    <para> Create an text segment selector by calling the routine <literal>Selector()</literal> </para>
+  </listitem>
+<!--
+  <listitem>
+    <para>
+    </para>
+  </listitem>
+-->
+</orderedlist>
+</para>
+</sect1>
+
+<sect1 id="project2_exeloading">
+<title>Loading the Executable</title>
+
+<para>
+GeekOS, like other operating systems, uses files to store executable programs.
+These files are in ELF format.  We have provided you with a simple read-only
+filesystem for this project, which contains several programs that you can
+use to test user mode.  To simplify the process of loading an executable,
+you will simply load the executable into a single buffer in the kernel.
+To do this, you can use the function <literal>Read_Fully()</literal>,
+whose prototype is in <filename>&lt;geekos/vfs.h&gt;</filename>.
+Here is an example of how you would read the executable <filename>/c/shell.exe</filename>
+into a kernel buffer:
+<programlisting>
+int rc;
+void *buf;
+ulong_t fileLen;
+
+rc = Read_Fully("/c/shell.exe", &amp;buf, &amp;fileLen);
+if (rc == 0) {
+    /*
+     * Read the file successfully!
+     * buf points to a Malloc'ed buffer containing the file data,
+     * and fileLen contains the length of the file.
+     */
+    ...
+}
+</programlisting>
+</para>
+
+<para>
+Loading ELF executables is fairly straightforward.  You will need to
+locate the ELF program headers.  These headers will describe the executable's
+<emphasis>text</emphasis> and <emphasis>data</emphasis> segments.
+<footnote>
+Note: in the context of the ELF format, "segment" simply refers
+to a region of the executable file that is loaded into memory.
+It has nothing to do with segments used by the CPU.
+</footnote>
+As you parse the ELF executable, you will fill in the fields of
+an <literal>Exe_Format</literal> data structure, which is a high level
+representation of how to load data from the executable file into
+memory.
+</para>
+
+</sect1>
+
+<sect1 id="project2_memoryspace">
+<title>Setting up the Process Memory</title>
+
+<para>
+Besides loading the executable's text and data segments into memory,
+you will also need to create two other data structures in the
+process's memory space.
+</para>
+
+<para>
+You will need to create a <emphasis>stack</emphasis> for the new process.
+The stack will reside at the top of the user address space.
+You can use the <literal>DEFAULT_USER_STACK_SIZE</literal> macro in
+<filename>src/geekos/userseg.c</filename> as the stack size.
+</para>
+
+<para>
+You will also need to create an <emphasis>argument block</emphasis> data
+structure.  This data structure creates the <literal>argc</literal> and
+<literal>argv</literal> arguments that are passed to the <literal>main()</literal>
+function of the user process.
+Two functions are defined to help you build the
+argument block (prototypes in <filename>&lt;geekos/argblock.h&gt;</filename>).
+<literal>Get_Argument_Block_Size()</literal> takes the <emphasis>command string</emphasis>
+passed to the <literal>Spawn()</literal> function and determines how many
+command line arguments there will be, and how many
+bytes are required to store the argument block.
+The <literal>Format_Argument_Block()</literal>
+function takes the number of arguments and argument block size from <literal>Get_Argument_Block_Size()</literal>
+and builds the argument block data structure in the memory location you have
+allocated for it.
+</para>
+
+<para>
+Note that you will need to take the size of the stack and argument block
+into account when you decide how much memory to allocate for the
+process.
+</para>
+</sect1>
+
+<sect1 id="project2_threadcreation">
+<title>User Thread Creation</title>
+<para>
+As described in <xref linkend="project2_synopsis"/>, you will need to
+create a thread for the new process.
+You will need to set up the
+stack of your new thread to look like it has just been interrupted. This
+will require pushing the appropriate values onto the stack to match what
+the hardware would push for an interrupt. The routine <literal>Push()</literal>
+(<filename>src/geekos/kthread.c</filename>) can
+be used to push individual values onto the stack.
+The required values should be pushed onto the stack as follows:
+<itemizedlist>
+<listitem><para>Stack Data selector (data selector)</para></listitem>
+<listitem><para>Stack Pointer (end of data memory)</para></listitem>
+<listitem><para>Eflags (IF bit should be set so interrupts are enabled)</para></listitem>
+<listitem><para>Text selector (text selector)</para></listitem>
+<listitem><para>Program Counter (code entry point address)</para></listitem>
+<listitem><para>Error Code (0) </para></listitem>
+<listitem><para>Interrupt Number (0)</para></listitem>
+<listitem><para>General Purpose Registers (esi should contain address of argument block)</para></listitem>
+<listitem><para>DS register (data selector)</para></listitem>
+<listitem><para>ES register (data selector)</para></listitem>
+<listitem><para>FS register (data selector)</para></listitem>
+<listitem><para>GS register (data selector)</para></listitem>
+</itemizedlist>
+</para>
+
+</sect1>
+
+<sect1 id="project2_systemcalls">
+<title>Adding System Calls</title>
+
+<para>
+System calls are software interrupts made by processes in order to
+request services from the kernel.  In GeekOS, the kernel handlers for
+system calls are implemented in the file <filename>src/geekos/syscall.c</filename>.
+Each system call you must implement is described in this file.
+</para>
+
+<para>
+Some of the system calls require you to copy data between the
+kernel address space and the current process's user address space.
+This task is carried out by the <literal>Copy_From_User()</literal>
+and <literal>Copy_To_User()</literal> functions whose prototypes are in
+the header file <filename>include/geekos/user.h</filename>, and whose
+implementations are in the file <filename>src/geekos/userseg.c</filename>.
+You will need to implement these functions.  With segmentation,
+this is a fairly easy task; once you have verified that the
+user buffer is valid (i.e., it lies entirely within memory belonging
+to the process), a call to <literal>memcpy()</literal> can be used
+to do the transfer.
+</para>
+</sect1>
+
+<sect1 id="project2_spawninit">
+<title>Spawning the Init Process</title>
+
+<para>
+When GeekOS boots up, it should start the user mode process in the file
+<filename>/c/shell.exe</filename>.  This process is the ancestor of all
+other user mode processes in the operating system.
+You will need to add the code to start this process and wait
+for it to exit.
+See the function <literal>Spawn_Init_Process()</literal>
+in <filename>src/geekos/main.c</filename>.
+</para>
+</sect1>
+
+<sect1 id="project2_testing">
+<title>Testing Your Project</title>
+
+<para>
+We have provided several user mode programs with which you can test
+your project.  <filename>shell.exe</filename> is a simple command interpreter
+program.  It is available on a PFAT filesystem from within GeekOS
+at the path <filename>/c/shell.exe</filename>.  It should be the first
+user program loaded by your kernel; for this reason, it is referred to
+as the <emphasis>init process</emphasis>.  Once you have successfully
+implemented <literal>Spawn()</literal> and its support routines, and
+implemented all of the required system call handlers, GeekOS should
+boot into a familiar command prompt.
+</para>
+
+<para>
+Once the init process loads, you can use it to test some other small
+user mode programs.  <filename>/c/b.exe</filename> prints a message, echoes
+its command line arguments, and exits.  <filename>/c/c.exe</filename>
+executes an illegal system call.  It will be killed by the kernel.
+</para>
+</sect1>
+
+
+</chapter>
+
+
+<!--
+**********************************************************************
+Project 3: Scheduling
+**********************************************************************
+-->
+
+<chapter id="schedulingproject">
+<title>Project 3: Scheduling</title>
+
+<sect1 id="project3_intro">
+<title>Introduction</title>
+<para>
+The purpose of this project is to explore scheduling algorithms and learn about
+inter-process synchronization via semaphores.
+</para>
+
+</sect1>
+
+<sect1 id="project3_multilevel">
+<title>Multilevel Feedback Scheduling</title>
+
+<para>
+There are many scheduling algorithms. In this project, you will augment
+the existing GeekOS  Round-Robin scheduling algorithm with a multilevel
+feedback scheduler. In  Round-Robin, all threads (really their
+<literal>Kernel_Thread</literal> structures) sit in a FIFO queue.
+In a multi-level feedback scheduler,
+you will use 4 queues instead of 1. Each queue is assigned a priority
+level. The queues will be numbered 0 through 3, with 0 being the highest
+priority, and 3 being the lowest. This will require changing <literal>s_runQueue</literal>
+(in <filename>src/geekos/kthread.c</filename>)
+from being a struct to being an array of structs; one for each priority
+level.
+</para>
+
+<para>
+A newly created process's <literal>Kernel_Thread</literal> structure
+will be placed on the ready queue of
+highest priority (i.e., 0). If the process runs for the full quantum,
+then it will be placed on the next lowest priority (1, if the process
+was new). Each time a process completes a full quantum, it will be
+placed on the ready queue with the next lowest priority until it is at
+priority 3, at which point it can not go any lower. Hence, CPU intensive
+processes will be eventually placed on the lowest priority queue. If the
+process is blocked, the priority level will increase by one level until
+after blocking three quanta in a row it will be back to priority 0. To
+schedule a new <literal>Kernel_Thread</literal> to run, look at the head of the highest priority
+queue. If there is a <literal>Kernel_Thread</literal> there, place it on the run queue. If not, go
+to the next lowest priority queue, and keep repeating until you find a
+<literal>Kernel_Thread</literal>. Scheduling always attempts to look at the highest priority queue
+and work down. This may mean low priority processes are starved.
+</para>
+
+<para>
+The choice of which scheduler to use should be made within the function
+<literal>Get_Next_Runnable()</literal>. Any function that calls the <literal>Get_Next_Runnable()</literal>
+should
+be unaware which scheduling algorithm is being used (i.e., do not pass
+the scheduling type as an argument). It should only be aware that some
+<literal>Kernel_Thread</literal> has been selected.
+</para>
+
+<para>
+You will need to handle the case of the Idle thread specially.  It should
+be placed in the lowest level of scheduling priority and should never
+be permitted to move out of that level.
+</para>
+
+<para>
+Your operating system should be able to switch which scheduling
+algorithm is being used via a system call.
+The system call int
+To make the scheduling policy configurable, you should implement
+the <literal>Sys_SetSchedulingPolicy()</literal> system call
+in <filename>src/geekos/syscall.c</filename>.
+This system call will take two parameters, <parameter>policy</parameter>
+(passed in <literal>state->ebx</literal>) and <parameter>quantum</parameter>
+(passed in <literal>state->ecx</literal>).  If
+the value of policy is 0, the system should switch to round robin
+scheduling, if the policy is 1, the system should switch to multi-level
+feedback. Other values of this parameter should result in an error code
+being returned (i.e. a non-zero return value). The value of the quantum
+parameter should be the number of ticks that a user process may run before
+getting removed from the processor. To implement the tunable quantum, you
+should change the constant <literal>MAX_TICKS</literal> in timer.c to be a global variable
+(whose default value is <literal>MAX_TICKS</literal>) that is set by this system call.
+</para>
+
+</sect1>
+
+<sect1 id="project3_semaphores">
+<title>Semaphores</title>
+
+<para>
+You will add the following system calls to your kernel (all defined in
+<filename>src/geekos/syscall.c</filename>):
+<itemizedlist>
+<listitem><literal>Sys_CreateSemaphore()</literal></listitem>
+<listitem><literal>Sys_P()</literal></listitem>
+<listitem><literal>Sys_V()</literal></listitem>
+<listitem><literal>Sys_DestroySemaphore()</literal></listitem>
+</itemizedlist>
+</para>
+
+<para>
+<literal>Sys_CreateSemaphore()</literal> creates a semaphore.  The
+user address and length of the string containing the semaphore name
+are stored in <literal>state->ebx</literal> and <literal>state->ecx</literal>,
+respectively.   It will get back a semaphore ID, an integer between 0 and N-1.
+You should be able to handle at least 20 semaphores whose names may be up to
+25 characters long. If there are no semaphores left
+(i.e., there were 20 semaphores with unique names already given),
+a negative number can be returned indicating an error.
+If the name corresponds to a semaphore that already exists,
+your function should return its ID.  Otherwise, it should create a new
+semaphore, using the value in <literal>state->edx</literal> as the
+initial count value for the semaphore.
+In either case, you should add semaphore id (SID) to the list of semaphores the
+current process can use, as well increment the count of registered users
+which are permitted to use the semaphore.
+</para>
+
+<para>
+The <literal>P()</literal> and <literal>V()</literal> operations
+acquire and release the semaphore, respectively.  <literal>P()</literal>
+waits until the semaphore's count is greater than 0, decrements the
+count by 1, and then proceeds.  <literal>V()</literal> increments
+the semaphore count by 1, and should wake up a thread that is waiting
+to acquire the semaphore, if any.
+When <literal>Sys_P()</literal> and <literal>Sys_V()</literal> are called,
+the kernel will check if the process has permission to make this call.
+It will do so by checking if the process has the SID in its list of SIDs
+that it can access (which is why you needed to create such a list).
+If it is there, it will be allowed to execute <literal>P()</literal> or
+<literal>V()</literal>.  If not, the kernel should return back a negative value.
+</para>
+
+<para>
+<literal>Sys_DestroySemaphore()</literal> will delete the passed semaphore.
+It will keep track of how many processes have references to this semaphore,
+and delete the semaphore from the table when the last process that can access
+this semaphore calls <literal>Destroy_Semaphore()</literal>.  Note that you
+should ensure that when processes exit, they release their references to
+any semaphores they have access to, even if they don't explicitly call
+<literal>Destroy_Semaphore()</literal>.
+</para>
+
+</sect1>
+
+<sect1 id="project3_timing">
+<title>Timing</title>
+
+<para>
+One way to compare scheduling algorithms is to see how long it takes a
+process to complete from the time of creation to the termination of the
+process. You will investigate these differences by implementing a system
+call, <literal>Sys_GetTimeOfDay()</literal>.
+</para>
+
+<para>
+<literal>Sys_GetTimeOfDay()</literal> will return the value of the kernel global variable
+<literal>g_numTicks</literal>. The variable is already implemented in the kernel, so you only
+need to implement the system call to read it. You can use this system
+call to determine how much time has elapsed between two events. You can
+do this by calling <literal>Get_Time_Of_Day()</literal> once at the beginning of the process
+(in the user code) and once at the end. You can calculate how long the
+process took to run, as well as when the process first got scheduled
+(based on ticks). Notice that there is no attempt to remove time spent
+by other processes. For example, if your process context switches out,
+then runs a second process, the second process's time during
+the context switch will be included in the first process's total
+time. This is known as "wall clock" time. One can also just calculate
+the time used by the process itself.  This time is called process time
+(or sometimes virtual time). GeekOS currently calculates this time,
+but you do not need to use this information in this project.
+</para>
+
+</sect1>
+
+<sect1 id="project3_evaluation">
+<title>Evaluating the Scheduling Policies</title>
+
+<para>
+You should run several tests on the supplied application <filename>workload.exe</filename>,
+varying the quantum length as well as the two scheduling algorithms. At
+minimum try running the system with the inputs of:
+<screen>
+<command>/c/workload.exe rr 1</command>
+<command>/c/workload.exe rr 100</command>
+<command>/c/workload.exe mlf 1</command>
+<command>/c/workload.exe mlf 100</command>
+</screen>
+You should investigate and be able to explain why the results occurred.
+The exercise is meant to let you consider the effects of quantum length
+and scheduling algorithms on the run of several processes.
+</para>
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 4: Virtual Memory
+**********************************************************************
+-->
+
+<chapter id="vmproject">
+<title>Project 4: Virtual Memory</title>
+
+<sect1 id="project4_intro">
+<title>Introduction</title>
+<para>
+The purpose of this project is to add paging to the GeekOS kernel.  This will
+require many small, but difficult changes to your project.  More than
+any previous project, it will be important to implement one thing,
+test it and then move to the next one.
+</para>
+</sect1>
+
+<!--
+<sect1 id="project4_synopsis">
+<title>Project Synopsis</title>
+
+<para>
+Need to write this section.
+</para>
+</sect1>
+-->
+
+<sect1 id="project4_pagetables">
+<title>Changing the Project to Use Page Tables</title>
+
+<para>
+The first step is to modify your project to use page tables and
+segmentation rather than just segments to provide memory protection.
+To enable using page tables, every region of memory your access (both
+kernel and data segment) must have an entry in a page table.  The way
+this will work is that there will be a single page table for all kernel
+only threads, and a page table for each user process.  In addition,
+the page tables for user mode processes will also contain entries to
+address the kernel mode memory.  The memory layout for this is shown in
+<xref linkend="vmlayout"/>.
+</para>
+
+<figure id="vmlayout">
+<title>Virtual memory layout in GeekOS.</title>
+<graphic  fileref="figures/vm2.png"/>
+</figure>
+
+<para>
+The kernel memory should be a one to one mapping of all of the physical
+memory in the processor (this limits the physical memory of the
+processor to 2GB, but this is not a critical limit for this project).
+The page table entries for this memory should be marked so that this
+memory is only accessible from kernel mode (i.e. the <literal>userMode</literal> bit in
+the page directory and page table should be 0). To make this change,
+you should start by creating a page directory and page table entries
+for the kernel threads by writing a function that initializes the page
+tables and enables paging mode in the processor.  You will do
+this in the <literal>Init_VM()</literal> function in
+<filename>src/geekos/paging.c</filename>.
+</para>
+
+<para>
+To set up page tables, you will need to allocate a page directory
+(using <literal>Alloc_Page()</literal>) and then allocate page
+tables for the entire region that will be mapped into this memory
+context.  You will need to fill out the appropriate fields in
+the page tables and page directories, which are represented by the
+<literal>pte_t</literal> and <literal>pde_t</literal> datatypes defined
+in <filename>&lt;geekos/paging.h&gt;</filename>.  Finally, to enable
+paging for the first time, you will need to call an assembly routine,
+<literal>Enable_Paging()</literal>, that will take the base address of
+your page directory as a parameter and then load the passed page directory
+address into register <literal>cr3</literal>, and then set the paging
+bit in <literal>cr0</literal> (the MSB, bit 31).
+</para>
+
+<para>
+The next step is to modify your user processes to all use pages in the
+user region.  This is a two step process.  First, you need to allocate
+a page directory for this user space.  You should copy all of the
+mappings from the kernel mode page directory for those memory regions in
+the low range of memory.  Next you need to allocate page table entries
+for the user processes text and data regions.  Do not allocate extra
+space for the stack here.  Finally, you should allocate space for one
+page of stack memory at the end of the virtual address range (i.e. the
+last entry in the last page table).  For the user space page mappings,
+make sure to enable the <literal>userMode</literal> bits in both the page directory and
+page table entries.
+</para>
+
+<para>
+You will also need to change some aspects of how the code from Project
+1 sets things up.  You should change the code and data segments
+for user processes so that the base address is
+be 0x80000000, and the limit is 0x80000000.  This will allow
+the user space process to think that its virtual location 0 is
+the 2GB point in the page layout and will greatly simplify your kernel
+compared to traditional paged systems.
+You will also need to add code to <literal>Switch_To_Address_Space()</literal>
+to switch the PTBR register (<literal>cr3</literal>) as part of a context switch;
+where you load the LDT of the user context, you should also load the address
+of the page directory for the process, which
+is the <literal>pageDir</literal> field in the <literal>User_Context</literal> structure.
+<footnote>
+You may choose to allocate the user code and data segment descriptors
+in the GDT (Global Descriptor Table) rather than having a separate
+LDT for each process.  If you decide to use this approach,
+then the <literal>User_Context</literal> will not need to contain
+an LDT or selector fields.  Instead, you should define 
+user mode code and data segments in the GDT using the
+<literal>Allocate_Segment_Descriptor()</literal> function,
+<emphasis>before any user process is created</emphasis>,
+and create selectors for these segments to use for the code
+and data segment registers for each newly created process.
+Each user process can use the same user code and data segments;
+because each process uses a separate virtual address space,
+there is no way that a process can access another process's
+memory.
+</footnote>
+</para>
+
+<para>
+When you are allocating pages of memory to use as part of
+a user address space, you should use a new function,
+<literal>Alloc_Pageable_Page()</literal> (prototype in
+<filename>&lt;geekos/mem.h&gt;</filename>.
+The primary difference
+is that any page allocated by this routine should have a special flag
+<literal>PAGE_PAGEABLE</literal> set in the flags field of its entry in the
+corresponding <literal>Page</literal> data structure.  Having this flag set marks
+the page as being eligible to be stolen and paged out to disk by the kernel when
+a page of memory is needed elsewhere, but no free pages are available.
+Note that you should <emphasis>not</emphasis> allocate page tables
+or page directories using this function.
+</para>
+
+</sect1>
+
+<sect1 id="project4_pagefaults">
+<title>Handling Page Faults</title>
+
+<para>
+One of the key features of using paging is to have the operating system
+handle page faults.  To do this you will need to write a page fault
+interrupt handler.  The first thing the page fault handler will need to
+do is to determine the address of the page fault; you can
+find out this address by calling the
+<literal>Get_Page_Fault_Address()</literal> function
+(prototype in <filename>&lt;geekos/paging.h&gt;</filename>.
+Also, the <literal>errorCode</literal> field of the <literal>Interrupt_State</literal>
+data structure passed to the page fault interrupt handler contains information
+about the faulting access. This information is defined in the
+<literal>faultcode_t</literal> data type defined in
+<filename>&lt;geekos/paging.h&gt;</filename>.
+Once the fault address and fault code have been obtained,
+the page fault handler will need to determine an appropriate action to take.
+Possible reasons for a page fault, and the action to take are shown in
+<xref linkend="faultactions"/>.
+</para>
+
+<figure id="faultactions">
+<title>Actions to be taken when a page fault occurs.</title>
+<graphic fileref="figures/faultaction2.png"/>
+</figure>
+</sect1>
+
+<sect1 id="project4_pagingout">
+<title>Paging Out Pages</title>
+
+<para>
+At some point, your operating system will run out of page frames to
+assign to processes.  In this case, you will need to pick a page to evict
+from memory and write it to the backing store (paging file). You should
+implement a version of pseudo-LRU.  Use the reference bit in the page
+tables to keep track of how frequently pages are accessed. To do this,
+add a <literal>clock</literal> field to the <literal>Page</literal>
+structure in <filename>&lt;geekos/mem.h&gt;</filename>.  You should
+update the clock on every page fault.
+</para>
+
+<para>
+You will also need to manage the use of the paging file. The paging file
+consists of a group of consecutive 512 bytes disk blocks.  Calling the
+routine <literal>Get_Paging_Device()</literal>
+(prototype in <filename>&lt;geekos/vfs.h&gt;</filename>) will return
+a <literal>Paging_Device()</literal> object; this consists of
+the block device the paging file is on, the start sector (disk block
+number), and the number of sectors (disk blocks) in the paging file.
+Each page will consume 8 consecutive disk blocks.
+To read/write the paging device, use the functions
+<literal>Block_Read()</literal> and <literal>Block_Write()</literal>.
+</para>
+
+</sect1>
+
+<sect1 id="project4_pagein">
+<title>Page Ins</title>
+
+<para>
+When a page is paged out to disk, the kernel stores the index
+returned by <literal>Find_Space_On_Paging_File()</literal> in
+the <literal>pageBaseAddr</literal> field of the page table entry
+(<literal>pte_t</literal>), and also stores the value
+<literal>KINFO_PAGE_ON_DISK</literal> in the entry's
+<literal>kernelInfo</literal> field.  In your page fault handler,
+when you find a non-present page that is marked as being on disk,
+you can use the value stored in <literal>pageBaseAddr</literal>
+to find the data for the page in the paging file.
+</para>
+</sect1>
+
+<sect1 id="project4_copyinout">
+<title>Copying Data Between Kernel and User Memory</title>
+
+<para>
+Because the GeekOS kernel is preemptible and user memory pages 
+can be stolen at any time, some subtle issues arise when copying data
+between the kernel and user memory spaces.  Specifically, the kernel
+must <emphasis>never</emphasis> read or write data on a user
+memory page if that page has the <literal>PAGE_PAGEABLE</literal>
+bit set at any time that a thread switch could occur.
+The reason is simple; if a thread switch did occur, another
+process could run and steal the page.  When control returns to the
+original thread, it would be reading or writing the wrong data,
+causing serious memory corruption.
+</para>
+
+<para>
+There are two general approaches to dealing with this problem.
+One is that interrupts (and thus preemption) should be disabled
+while touching user memory.  This approach is not a complete solution,
+because it is not legal to do I/O (i.e., <literal>Block_Read()</literal>
+and <literal>Block_Write()</literal>) while interrupts are disabled.
+</para>
+
+<para>
+The second approach is to use <emphasis>page locking</emphasis>.
+Before touching a user memory page, the kernel will atomically
+clear the <literal>PAGE_PAGEABLE</literal> flag for the page;
+this is referred to as <emphasis>locking</emphasis> the page.
+Once a page is locked, the kernel can then freely modify the page,
+safe in the knowledge that
+the page will not be stolen by another process.  When it is done
+reading or writing the page, it can <emphasis>unlock</emphasis>
+the page by clearing the
+<literal>PAGE_PAGEABLE</literal> flag.  Note that page flags
+should only be modified while interrupts are disabled.
+</para>
+</sect1>
+
+<sect1 id="project4_implementation">
+<title>Implementation</title>
+<para>
+In order to implementing virtual memory and paging, you will need to
+implement several functions.
+</para>
+
+<sect2 id="project4_pagingfuncs">
+<title>Functions in <filename>src/geekos/paging.c</filename></title>
+
+<itemizedlist>
+
+<listitem><para>
+<literal>Init_VM()</literal> (defined in )
+will set up the initial kernel page directory and page tables,
+and install a page fault handler function.
+</para></listitem>
+
+<listitem><para>
+<literal>Init_Paging()</literal> (defined in <filename>src/geekos/paging.c</filename>)
+should initialize any data structures you need to manage the paging file.
+As mentioned earlier, the <literal>Get_Paging_Device()</literal> function
+specifies what device the paging file is located on, and the range
+of disk blocks it occupies.
+</para></listitem>
+
+<listitem><para>
+<literal>Find_Space_On_Paging_File()</literal> should find a free
+page-sized chunk of disk space in the paging file.
+It should return an index identifying the chunk, or -1 if
+no space is available in the paging file.
+</para></listitem>
+
+<listitem><para>
+<literal>Free_Space_On_Paging_File()</literal> will free a chunk
+of space in the paging file previously allocated by
+<literal>Find_Space_On_Paging_File()</literal>.
+</para></listitem>
+
+<listitem><para>
+<literal>Write_To_Paging_File()</literal> writes the data stored
+in a page of memory to the paging file.
+</para></listitem>
+
+<listitem><para>
+<literal>Read_From_Paging_File()</literal> reads the data
+for a page stored in the paging file into memory.
+</para></listitem>
+
+</itemizedlist>
+
+</sect2>
+
+<sect2 id="project4_uservmfuncs">
+<title>Functions in <filename>src/geekos/uservm.c</filename></title>
+
+<itemizedlist>
+
+<listitem><para>
+<literal>Destroy_User_Context()</literal> frees all of the memory and
+other resources (semaphores, files) used by a process.
+</para></listitem>
+
+<listitem><para>
+<literal>Load_User_Program()</literal> loads an executable file
+into memory, creating a complete, ready-to-execute user address space.
+</para></listitem>
+
+<listitem><para>
+<literal>Copy_From_User()</literal> copies data from a user buffer
+into a kernel buffer.
+</para></listitem>
+
+<listitem><para>
+<literal>Copy_To_User()</literal> copies data from a kernel
+buffer into a user buffer.
+</para></listitem>
+
+<listitem><para>
+<literal>Switch_To_Address_Space()</literal> switches to a user
+address space by loading its page directory and (if necessary)
+its LDT.
+</para></listitem>
+
+</itemizedlist>
+</sect2>
+
+</sect1>
+
+<sect1 id="project4_extracredit">
+<title>Extra Credit</title>
+
+<para>
+The implementation of virtual memory in GeekOS is a very simple one.
+There are many ways that it can be extended and improved.
+</para>
+
+<sect2 id="project4_fastvictimselection">
+<title>Improving <literal>Find_Page_To_Page_Out()</literal></title>
+<para>
+When a page of pageable memory is required and no pages are available,
+the kernel uses the <literal>Find_Page_To_Page_Out()</literal> function
+(in <filename>src/geekos/mem.c</filename>) to select a page
+to page out.  While interrupts are disabled (meaning no other threads
+or interrupt handlers can run), this function traverses the array
+of all <literal>Page</literal> data structures, in order to find the
+one with the oldest clock field.
+</para>
+
+<para>
+How can you make this function work more efficiently?
+</para>
+</sect2>
+
+<sect2 id="project4_userheap">
+<title>Adding a User Heap</title>
+
+<para>
+Currently, the GeekOS kernel only creates a code segment, data segment,
+and stack for user processes.  However, it does not create a user
+heap, meaning that user processes cannot allocate memory dynamically
+(using a function like <literal>malloc()</literal>).
+</para>
+
+<para>
+In order to add support for user heaps to GeekOS, you will need
+to do several things:
+<itemizedlist>
+<listitem><para>
+The kernel will need to inform the <function>_Entry()</function>
+function in the C library (<filename>src/libc/entry.c</filename>)
+of the start address and maximum size of the heap area.
+You may also wish to allow user processes to request that the
+heap be extended (similar to the <function>brk()</function>
+system call in Unix and Linux).  In any case, <function>_Entry()</function>
+will need to initialize the heap area.
+</para></listitem>
+
+<listitem><para>
+The C library will need to implement functions to allocate and free
+memory.  You can copy the file <filename>src/geekos/bget.c</filename>
+into the C library, and use the functions <function>bpool()</function>,
+<function>bget()</function>, and <function>brel()</function>
+to initialize the heap, allocate memory, and free memory, respectively.
+To add new source files to the C library,  put them
+in the <filename>src/libc</filename> directory and add them to
+the definition of the <varname>LIBC_C_SRCS</varname> macro
+in <filename>build/Makefile</filename>.
+</para></listitem>
+
+<listitem><para>
+The page fault handler will need to dynamically allocate pages
+for memory accesses that occur in the heap area, in much the same
+way as it allows the stack to grow dynamically.
+</para></listitem>
+</itemizedlist>
+</para>
+</sect2>
+
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 5: A Filesystem
+********************************************************************** -->
+
+<chapter id="fsproject">
+<title>Project 5: A Filesystem</title>
+
+<sect1 id="project5_intro">
+<title>Introduction</title>
+<para>
+The purpose of this project is to add a new filesystem to GeekOS.
+</para>
+</sect1>
+
+<sect1 id="project5_gosfs">
+<title>GOSFS: GeekOS FileSystem</title>
+
+<para>
+The main part of this project is to develop a new filesystem for the
+GeekOS.  This filesystem will reside on the second IDE disk drive in the
+Bochs emulator.  This will allow you to continue to use your existing
+pfat drive to load user programs while you test your filesystem.
+</para>
+
+<para>
+GOSFS will provide a filesystem that includes multiple directories,
+access control (via user ids), and long file name support.  The access
+control will be added as part of the next project.
+</para>
+</sect1>
+
+<sect1 id="project5_vfs">
+<title>The Virtual Filesystem Layer (VFS)</title>
+
+<para>
+In this project, you will work extensively with the virtual filesystem
+layer, commonly referred to as the VFS.  This part of the kernel
+allows multiple filesystem implementations to coexist.  A high level
+view of the VFS, as well as the C library and kernel subsystems it
+communicates with, is shown in <xref linkend="vfsdiagram"/>.
+</para>
+
+<figure id="vfsdiagram">
+<title>Overview of the Virtual Filesystem (VFS)</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="figures/vfs.pdf" format="PDF"/>
+    </imageobject>
+    <imageobject>
+      <imagedata fileref="figures/vfs.png" format="PNG"/>
+    </imageobject>
+  </mediaobject>
+</figure>
+
+<para>
+The VFS layer works by dispatching requests for filesystem operations
+(such as opening, reading, or writing a file) to the appropriate
+filesystem implementation.  The VFS works by defining several abstract
+datatypes representing mounted filesystem instances, open files, and open directories.
+Each of these datatypes contains a <emphasis>virtual function table</emphasis>
+which contains pointers to functions in the filesystem that the object
+belongs to.  For example, <literal>File</literal> objects created by
+the GOSFS filesystem have a virtual function table whose <function>Read()</function>
+entry points to the function <function>GOSFS_Read()</function>.
+<footnote>
+If you are familiar with virtual function tables in C++ and Java,
+this is exactly the same idea.
+</footnote>
+</para>
+
+<para>
+To give you an idea of how VFS works, here is what happens when a
+user process reads data from an open file in a GOSFS filesystem.
+<orderedlist>
+<listitem><para>
+The process calls the <function>Read()</function> in the C library,
+which generates a software interrupts to notify the kernel that a system
+call is requested.  It passes a file descriptor identifying the open file,
+the address of the buffer to store the data read from the file, and the
+number of bytes requested.
+</para></listitem>
+
+<listitem><para>
+The kernel calls the <function>Sys_Read()</function> system call handler function.
+This function will look at the process's open file list (in <literal>User_Context</literal>)
+to find the <literal>File</literal> object representing the open file.
+It will also need to allocate a kernel buffer to temporarily hold
+the data read from the file.
+It will then call the kernel VFS function <function>Read()</function>.
+</para></listitem>
+
+<listitem><para>
+The VFS <function>Read()</function> will find the address of the <function>Read</function>
+function in the file's virtual function table.  Because the file is part of
+a GOSFS filesystem, this will resolve to the <function>GOSFS_Read()</function>
+function.
+</para></listitem>
+
+<listitem><para>
+<function>GOSFS_Read()</function> will do whatever work is necessary to
+read the requested data from the file, at the current file position,
+copying the data into the kernel buffer created by <function>Sys_Read()</function>.
+</para></listitem>
+
+<listitem><para>
+When control returns to <function>Sys_Read()</function>, it will
+copy the data read from the kernel buffer to the user buffer
+(using the <function>Copy_To_User()</function> function),
+and destroy the kernel buffer.
+</para></listitem>
+
+<listitem><para>
+Finally, <function>Sys_Read()</function> will return, and the
+process will resume execution.
+</para></listitem>
+<!--
+<listitem><para>
+</listitem></para>
+-->
+</orderedlist>
+</para>
+
+</sect1>
+
+<sect1 id="project5_vfstypesandoperations">
+<title>VFS Data Types and Operations</title>
+
+<para>
+This section describes the high level VFS data types and
+operations, which are defined in <filename>&lt;geekos/vfs.h&gt;</filename>.
+You should read and understand the definitions in this header,
+and you may also want to look at the VFS function implementations
+in <filename>src/geekos/vfs.c</filename>.
+</para>
+
+<para>
+Every operation described in this section is implemented by
+function in <filename>src/geekos/gosfs.c</filename>.
+For example, the <function>Read()</function> file operation
+is implemented by the function <function>GOSFS_Read()</function>.
+</para>
+
+<sect2 id="project5_vfsfilesystem">
+<title>Filesystem</title>
+
+<para>
+The <literal>Filesystem</literal> data structure represents
+a filesystem type.  There are two operations associated with
+<literal>Filesystem</literal>:
+<itemizedlist>
+<listitem><para>
+  The <literal>Format()</literal> operation formats a block device.
+  Formatting writes filesystem metadata to the device so that it can
+  be mounted.
+</para></listitem>
+
+<listitem><para>
+  The <literal>Mount()</literal> operation mounts a block device
+  containing on a particular path prefix in the overall filesystem namespace.
+  It must check to see that the required filesystem metadata is present,
+  and then initialize any internal data structures needed by the
+  filesystem in order to serve requests such as opening files,
+  reading and writing file data, etc.
+</para></listitem>
+<!--
+<listitem><para>
+</para></listitem>
+-->
+</itemizedlist>
+</para>
+</sect2>
+
+<sect2 id="project5_vfsmountpoint">
+<title>Mount_Point</title>
+
+<para>
+The <literal>Mount_Point</literal> data structure represents a mounted
+filesystem instance.  In GeekOS, filesystems are mounted on a
+<emphasis>path prefix</emphasis>, which indicates what part of
+the overall filesystem namespace the mounted filesystem will be
+part of.  For example, the PFAT filesystem containing the user executables
+is usually mounted on the <filename>/c</filename> prefix.
+Each mounted filesystem uses a block device as its underlying storage.
+</para>
+
+<para>
+<literal>Mount_Point</literal> objects support several operations:
+<itemizedlist>
+<listitem><para>
+The <function>Open()</function> operation opens a file in the
+mounted filesystem.
+</para></listitem>
+
+<listitem><para>
+The <function>Create_Directory()</function> operation creates a
+directory in the mounted filesystem.
+</para></listitem>
+
+<listitem><para>
+The <function>Open_Directory()</function> operation opens
+a directory in the mounted filesystem, so that its entries
+can be read using the <function>Read_Entry()</function>
+operation.
+</para></listitem>
+
+<listitem><para>
+The <function>Stat()</function> retrieves the files metadata,
+such as size and file permissions, for a named file in the
+mounted filesystem.
+</para></listitem>
+
+<listitem><para>
+The <function>Sync()</function> flushes all file data and filesystem
+metadata stored in memory but not written to the disk.
+This operation is needed because filesystems ususally keep
+data in memory buffers, and write modified data out to the disk
+later.  Following a <function>Sync()</function> operation,
+all data in the filesystem is guaranteed to be written to the disk.
+</para></listitem>
+<!--
+<listitem><para>
+</para></listitem>
+-->
+</itemizedlist>
+</para>
+
+<para>
+For all <literal>Mount_Point</literal> operations that take
+paths,
+the path prefix used to mount the filesystem
+is removed before the operation is called.
+So, if a GOSFS filesystem
+is mounted on prefix "<filename>/d</filename>", and
+the file "<filename>/d/stuff/foo.txt</filename>" is passed
+to the high level VFS function <function>Open()</function>,
+the path passed to <function>GOSFS_Open()</function> will
+be "<filename>/stuff/foo.txt</filename>".
+</para>
+
+</sect2>
+
+<sect2 id="project5_vfsfile">
+<title>File</title>
+
+<para>
+The <literal>File</literal> data type represents a file or directory
+opened by a process.  <literal>File</literal> objects are created
+by the <function>Open()</function> and <function>Open_Directory()</function>
+<literal>Mount_Point</literal> operations.
+</para>
+
+<para>
+Regular <literal>File</literal> objects (i.e., those representing files,
+not directories) maintain a current <emphasis>file position</emphasis>.
+All reads and writes are performed relative to the current file position.
+</para>
+
+<para>
+<literal>File</literal> objects support the following operations:
+<itemizedlist>
+<listitem><para>
+The <function>FStat()</function> operation, like <literal>Mount_Point</literal>'s
+<function>Stat()</function> operation, retrieves file metadata, such
+as size and file permissions.
+</para></listitem>
+
+<listitem><para>
+The <function>Read()</function> operation reads data at the current
+file position.  Directories do not support this operation.
+</para></listitem>
+
+<listitem><para>
+The <function>Write()</function> operation writes data at the current
+file position.  Directories do not support this operation.
+</para></listitem>
+
+<listitem><para>
+The <function>Seek()</function> operation changes the current file position.
+Directories do not support this operation.
+</para></listitem>
+
+<listitem><para>
+The <function>Close()</function> operation closes the file or directory.
+</para></listitem>
+
+<listitem><para>
+The <function>Read_Entry()</function> operation reads the next directory
+entry from an open directory.  This operation is not supported for
+regular files.
+</para></listitem>
+
+<!--
+<listitem><para>
+</para></listitem>
+-->
+</itemizedlist>
+</para>
+
+</sect2>
+
+</sect1>
+
+<sect1 id="project5_requirements">
+<title>Requirements</title>
+
+<para>
+Each user space process will have an open file table that keeps track of
+which files that process can currently read and write. Any user process
+should be able to have 10 files open at once: this constant
+is defined as the <constant>USER_MAX_FILES</constant> macro in
+<filename>&lt;geekos/user.h&gt;</filename>.
+</para>
+
+<para>
+The header file <filename>&lt;geekos/gosfs.h&gt;</filename> specifies
+constants and data structures for you to use in your filesystem
+implementation.
+All disk allocations will be in
+units of 4KB (i.e. 8 physical disk blocks);
+this value is specified by the <constant>GOSFS_FS_BLOCK_SIZE</constant>
+macro.
+You should maintain a free disk block list via a bit
+vector.  A library of bitset functions is provided (prototypes
+in <filename>&lt;geekos/bitset.h&gt;</filename>) that will allow you to set and clear
+bits in blocks of memory, and also to find free bits
+representing free filesystem blocks.
+Your filesystem should support long filenames up to 127 characters,
+as specified by the <constant>GOSFS_FILENAME_MAX</constant> constant.
+The total file name (i.e. a
+full path) will be no more than 1023 characters (as specified by the
+<constant>VFS_MAX_PATH_LEN</constant> in the header
+<filename>&lt;geekos/fileio.h&gt;</filename>).
+<!--
+Directories will consist
+of up to 60 files each (i.e. they need to fit into one 4KB disk block).
+-->
+</para>
+
+<para>
+You will use a version of indexed allocation to represent the blocks of
+your filesystem.  The first 8 4KB blocks are direct blocks, the next
+1024 blocks are indirect blocks.  These values are specified by the
+<constant>GOSFS_NUM_DIRECT_BLOCKS</constant> and <constant>GOSFS_NUM_INDIRECT_BLOCKS</constant>
+macros, respectively.
+The filesystem should provide a way
+to implement the next 1 million blocks as double indirect blocks, but
+you are not required to implement that interface.
+</para>
+
+</sect1>
+
+<sect1 id="project5_direntry">
+<title>GOSFS_Dir_Entry</title>
+
+<para>
+The <literal>GOSFS_Dir_Entry</literal> data structure represents
+a single directory entry as it is stored on disk.
+It contains several fields:
+<itemizedlist>
+<listitem><para>
+The <varname>size</varname> field stores the size of the file or
+directory referred to by the entry.
+</para></listitem>
+
+<listitem><para>
+The <varname>flags</varname> field stores several boolean flags.
+The <constant>GOSFS_DIRENTRY_USED</constant> flag indicates that the
+directory entry is used.  If this is not set, it means the directory
+entry is available.  The <constant>GOSFS_DIRENTRY_ISDIRECTORY</constant>
+flag indicates that the directory entry refers to a subdirectory.
+The <constant>GOSFS_DIRENTRY_SETUID</constant> flag means that the
+directory entry refers to a file which is a <emphasis>setuid executable</emphasis>:
+if the file is executed, the new process created will have the same
+user id as the file's owner.  (You will not need to do anything with
+this bit until the next project.)
+</para></listitem>
+
+<listitem><para>
+The <varname>filename</varname> field stores the filename, including
+room for a nul terminator character.
+</para></listitem>
+
+<listitem><para>
+The <varname>blockList</varname> field stores the block numbers of
+the direct, indirect, and doubly indirect blocks representing the
+allocated storage for the file or directory.
+</para></listitem>
+
+<listitem><para>
+Finally, the <varname>acl</varname> field stores the list of
+Access Control List entries for the file or directory.
+The first entry specifies the entry for the file's owner.
+</para></listitem>
+
+<!--
+<listitem><para>
+</para></listitem>
+-->
+</itemizedlist>
+</para>
+</sect1>
+
+<sect1 id="project5_buffercache">
+<title>The Buffer Cache</title>
+
+<para>
+In your filesystem implementation, you will frequently need to read
+data from the filesystem into memory, and sometimes you will need
+to write data from memory back to the filesystem.  Most operating
+system kernels use a <emphasis>buffer cache</emphasis> for this
+purpose.  The idea is that the buffer cache contains memory buffers
+which correspond to particular filesystem blocks.  To read a block,
+the kernel requests a buffer containing that block from the buffer cache.
+To write a block, the data in the buffer is modified, and the
+buffer is marked as <emphasis>dirty</emphasis>.  At some point in
+the future, the data in the dirty buffer will be written back
+to the disk.
+</para>
+
+<para>
+For this project, we have provided you will a buffer cache implementation,
+which you can use by including the <filename>&lt;geekos/bufcache.h&gt;</filename>
+header file.
+The <literal>Buffer_Cache</literal> data structure represents a buffer cache
+for a particular filesystem instance.  You can create a new buffer cache
+by passing the block device to the <function>Create_FS_Buffer_Cache()</function>
+function.  A buffer containing the data for a single filesystem block
+is represented by the <literal>FS_Buffer</literal> data type.
+You can request a buffer for a particular block by calling the
+<function>Get_FS_Buffer()</function> function.  The actual memory containing
+the data for the block is pointed to by the <varname>data</varname>
+field of <literal>FS_Buffer</literal>.  If you modify the data in a buffer,
+you must call the <function>Modify_FS_Buffer()</function> function
+to let the buffer cache know that the buffer is now dirty.
+When your code has finished accessing or modifying a buffer,
+it should be released using the <function>Release_FS_Buffer</function>
+function.
+</para>
+
+<para>
+Buffers are accessed in a <emphasis>transactional</emphasis> manner.
+Only one thread can use a buffer at a time.  If one thread is using
+a buffer and a second requests the same buffer
+(by calling <function>Get_FS_Buffer()</function>),
+the second thread will be suspended until the first thread releases
+the buffer (by calling <function>Release_FS_Buffer()</function>).
+Note that you need to be careful never to call <function>Get_FS_Buffer()</function>
+twice in a row, since that will cause a self-deadlock.
+</para>
+
+<para>
+The GeekOS buffer cache writes dirty buffers to disk lazily.
+If you want to immediately write the contents of a buffer back 
+to the disk, you can call the <function>Sync_FS_Buffer()</function>
+function.  It is generally a good idea to write back modified filesystem
+buffers when they contain <emphasis>filesystem metadata</emphasis>
+such as directories or disk allocation bitmaps; by writing these
+blocks eagerly, the filesystem is less likely to be seriously corrupted
+if the operating system crashes or if the computer is turned off
+unexpectedly.  You can flush all of the dirty buffers in a buffer
+cache by calling the <function>Sync_FS_Buffer_Cache()</function>;
+this is useful for implementing the <function>Sync()</function>
+operation for your mounted filesystems.
+</para>
+
+<para>
+The <function>Destroy_FS_Buffer_Cache()</function> function destroys
+a buffer cache, first flushing all dirty buffers to disk.  This may
+be useful in your implementation of <function>GOSFS_Format()</function>.
+</para>
+</sect1>
+
+<sect1 id="project5_gettingstarted">
+<title>Getting Started</title>
+
+<para>
+Implementing a filesystem is complex.  This section offers some
+suggestions on how to approach the project.
+</para>
+
+<para>
+First, implement the <function>GOSFS_Format()</function> function.
+You may want to create a temporary <literal>FS_Buffer_Cache</literal>
+object to use to perform I/O.
+</para>
+
+<para>
+Next, implement the <function>GOSFS_Mount()</function> function.
+This function is passed a <literal>Mount_Point</literal> object
+with a pointer to  the block device containing the filesystem image.
+You will probably want to create an auxiliary data structure to
+store in the mount point; you can use this data structure to store
+a pointer to your buffer cache object, and any other information
+you will need when performing <literal>Mount_Point</literal>
+operations such as opening a file.  You can store a pointer to
+the auxiliary data structure in the <varname>fsData</varname>
+field of the <literal>Mount_Point</literal> object.
+</para>
+
+<para>
+You can test formatting and mounting a GOSFS filesystem by
+running the following commands from the GeekOS shell prompt:
+<screen>
+<prompt>$ </prompt>format ide1 gosfs<command></command>
+<prompt>$ </prompt>mount ide1 /d gosfs<command></command>
+</screen>
+</para>
+
+<para>
+Once you can format and mount a GOSFS filesystem, you can start
+implementing <literal>Mount_Point</literal> functions.
+<function>GOSFS_Open()</function> is a logical place to start.
+When this function is called with the <constant>O_CREATE</constant>
+bit set in the mode flags, you should create a new file.
+As with <function>GOSFS_Mount()</function>, you will probably
+want to store an auxiliary data structure in the <literal>File</literal>
+object when it is created; you can use the <varname>fsData</varname>
+field for this purpose.
+You can use the <filename>touch.exe</filename> program
+to test file creation.  You will also need to implement
+<function>GOSFS_Create_Directory()</function>, which you can
+test using the <filename>mkdir.exe</filename> program.
+</para>
+
+<para>
+Once files and directories can be created, you can start working
+on <literal>File</literal> operations.  A good place to start would
+be the <function>GOSFS_Close()</function> function.  Eventually you
+will need to implement more complex functions like <function>GOSFS_Read()</function>,
+<function>GOSFS_Read_Entry()</function>, and <function>GOSFS_Write()</function>.
+</para>
+</sect1>
+
+<sect1 id="project5_issues">
+<title>Issues</title>
+
+<para>
+This section discusses some implementation issues you should
+think about as you work on the project.
+</para>
+
+<sect2 id="project5_concurrency">
+<title>Concurrency</title>
+
+<para>
+Mount points, files, and directories can be accessed by multiple
+processes.  Therefore, you will need to establish a locking discipline
+for your filesystem data structures to ensure that they can be
+safely accessed by multiple threads and processes.  For this project,
+you can use a simple approach, such as having a single mutex protect
+an entire filesystem instance.
+</para>
+</sect2>
+
+<sect2 id="project5_filesharing">
+<title>File Sharing</title>
+
+<para>
+The <literal>File</literal> data structure defined in
+<filename>&lt;geekos/vfs.h&gt;</filename> represents a file or directory
+that has been opened by a process.  If two processes open the same
+file at the same time, they will have separate <literal>File</literal>
+objects.  This is necessary because both processes must have separate
+file positions; if one process performs a read or a seek operation,
+it should not affect the other process.
+However, both objects refer to the same file in the filesystem;
+changes made by one process should be seen by the other.
+This means that you will probably want to arrange for both
+VFS <literal>File</literal> objects to have a pointer to  a common,
+shared data structure representing the "real" file.
+This arrangement is shown in <xref linkend="sharedfile"/>.
+</para>
+
+<figure id="sharedfile">
+<title>Multiple <literal>File</literal> objects can refer to a common data structure</title>
+  <mediaobject>
+    <imageobject>
+      <imagedata fileref="figures/sharedfile.pdf" format="PDF"/>
+    </imageobject>
+    <imageobject>
+      <imagedata fileref="figures/sharedfile.png" format="PNG"/>
+    </imageobject>
+  </mediaobject>
+</figure>
+
+<para>
+Because there can be multiple references to your internal file data
+structure, you will probably want to keep a reference count,
+so you can clean up properly when there are no more references.
+</para>
+</sect2>
+
+<!--
+<sect2 id="project5_dirtree">
+<title>Directory Tree Structure</title>
+
+<para>
+Your filesystem implementation must support nested subdirectories.
+
+</para>
+</sect2>
+-->
+
+</sect1>
+
+</chapter>
+
+<!--
+**********************************************************************
+Project 6: ACLs and Inter-process Communication
+**********************************************************************
+-->
+
+<chapter id="ipcproject">
+<title>Project 6: ACLs and Inter-process Communication</title>
+<para>
+<important>
+This chapter has not yet been written.  It will be finished in the
+near future.  Please send email to <email>daveho@cs.umd.edu</email>
+for more information.
+</important>
+</para>
+</chapter>
+
+<!--
+**********************************************************************
+GeekOS API Reference
+**********************************************************************
+-->
+
+<chapter id="apiref">
+<title>GeekOS API Reference</title>
+
+<para>
+This chapter documents commonly used functions in the GeekOS kernel.
+Note that this chapter is likely to be incomplete.  You can always refer
+directly to the GeekOS source code if you need more information on
+a particular function.
+</para>
+
+<sect1 id="threadfns">
+<title>Thread functions</title>
+This section describes functions used to manage threads.
+
+<sect2 id="Start_Kernel_Thread">
+<title>Start_Kernel_Thread()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>struct Kernel_Thread *<function>Start_Kernel_Thread</function></funcdef>
+    <paramdef>Thread_Start_Func <parameter>startFunc</parameter></paramdef>
+    <paramdef>ulong_t <parameter>arg</parameter></paramdef>
+    <paramdef>int <parameter>priority</parameter></paramdef>
+    <paramdef>bool <parameter>detached</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Starts a new kernel thread.  <parameter>startFunc</parameter> is a function
+which will be called as the body of the new thread.
+The start function will execute with interrupts enabled.
+It should return void and take an unsigned long parameter.
+<parameter>arg</parameter> is an arbitrary value passed to the thread's start function.
+It can be used to convey extra information, or a pointer to a data
+structure to be used by the thread.  <parameter>priority</parameter>
+is the priority of the new thread.  <literal>PRIORITY_NORMAL</literal>
+should be used for ordinary kernel threads.  <literal>PRIORITY_USER</literal>
+should be used for user processes.  <parameter>detached</parameter>
+indicates whether the parent thread will wait for the child thread
+to exit.  If true, then the parent must call the <literal>Join()</literal>
+function to wait for the child.  If false, then the parent must not
+call <literal>Join()</literal>.
+</para>
+</sect2>
+
+<sect2 id="Exit">
+<title>Exit()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>void <function>Exit</function></funcdef>
+    <paramdef>int <parameter>exitCode</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Causes the current thread to exit with the exit code given by <parameter>exitCode</parameter>.
+If the current thread has a parent and is not a detached thread, the
+exit code will be returned by the <literal>Join()</literal> call made by
+the parent.  Interrupts must be enabled.
+</para>
+</sect2>
+
+<sect2 id="Join">
+<title>Join()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>int <function>Join</function></funcdef>
+    <paramdef>struct Kernel_Thread *<parameter>kthread</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Wait for a child thread <parameter>kthread</parameter> to exit.  The
+child must have been created with its <parameter>detached</parameter>
+parameter set to true.  Once the child has exited, returns the exit code
+of the child thread.  Interrupts must be enabled.
+</para>
+</sect2>
+
+<sect2 id="Wait">
+<title>Wait()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>void <function>Wait</function></funcdef>
+    <paramdef>struct Thread_Queue *<parameter>waitQueue</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Puts the current thread on given wait queue.  The thread will resume executing
+at a later point when another thread or interrupt handler calls
+<literal>Wake_Up()</literal> or <literal>Wake_Up_One()</literal> on the
+same wait queue.  Interrupts must be disabled.
+</para>
+</sect2>
+
+<sect2 id="Wake_Up">
+<title>Wake_Up()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>void <function>Wake_Up</function></funcdef>
+    <paramdef>struct Thread_Queue *<parameter>waitQueue</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Wakes up all threads on given wait queue by moving them to the
+run queue.  Interrupts must be disabled.
+</para>
+</sect2>
+
+<sect2 id="Wake_Up_One">
+<title>Wake_Up_One()</title>
+
+<para>
+<funcsynopsis>
+  <funcprototype>
+    <funcdef>void <function>Wake_Up_One</function></funcdef>
+    <paramdef>struct Thread_Queue *<parameter>waitQueue</parameter></paramdef>
+  </funcprototype>
+</funcsynopsis>
+</para>
+<para>
+Wakes up the highest priority thread in given wait queue by
+moving it to the run queue.  Interrupts must be disabled.
+</para>
+</sect2>
+
+</sect1>
+
+</chapter>
+
+</book>
