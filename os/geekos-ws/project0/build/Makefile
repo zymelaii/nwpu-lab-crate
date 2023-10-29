@@ -248,6 +248,6 @@ depend.mak :
 	touch $@
 
 run: fd.img
-	qemu-system-i386 -boot a -fda $< -m 10M -display curses -m 10M -s -S
+	@qemu-system-i386 -boot a -drive format=raw,index=0,if=floppy,file=$< -display curses -m 10M -s -S
 
 include depend.mak
