@@ -2,7 +2,7 @@
  * Kernel threads
  * Copyright (c) 2001,2003 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.49 $
- *
+ * 
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -28,9 +28,9 @@
 static struct All_Thread_List s_allThreadList;
 
 /*
- * Queue of runnable threads.
+ * Run queues.  0 is the highest priority queue.
  */
-static struct Thread_Queue s_runQueue;
+static struct Thread_Queue s_runQueue[MAX_QUEUE_LEVEL];
 
 /*
  * Current thread.
@@ -100,6 +100,8 @@ static void Init_Thread(struct Kernel_Thread* kthread, void* stackPage,
     Clear_Thread_Queue(&kthread->joinQueue);
     kthread->pid = nextFreePid++;
 
+    kthread->currentReadyQueue = 0;
+    kthread->blocked = false;
 }
 
 /*
@@ -117,7 +119,7 @@ static struct Kernel_Thread* Create_Thread(int priority, bool detached)
      */
     kthread = Alloc_Page();
     if (kthread != 0)
-        stackPage = Alloc_Page();
+        stackPage = Alloc_Page();    
 
     /* Make sure that the memory allocations succeeded. */
     if (kthread == 0)
@@ -297,6 +299,24 @@ static void Setup_Kernel_Thread(
     Push(kthread, 0);  /* gs */
 }
 
+/*
+ * Set up the a user mode thread.
+ */
+/*static*/ void Setup_User_Thread(
+    struct Kernel_Thread* kthread, struct User_Context* userContext)
+{
+    /*
+     * Hints:
+     * - Call Attach_User_Context() to attach the user context
+     *   to the Kernel_Thread
+     * - Set up initial thread stack to make it appear that
+     *   the thread was interrupted while in user mode
+     *   just before the entry point instruction was executed
+     * - The esi register should contain the address of
+     *   the argument block
+     */
+    TODO("Create a new thread to execute in user mode");
+}
 
 
 /*
@@ -377,7 +397,7 @@ static __inline__ struct Kernel_Thread* Find_Best(struct Thread_Queue* queue)
  * Acquires pointer to thread-local data from the current thread
  * indexed by the given key.  Assumes interrupts are off.
  */
-static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k)
+static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k) 
 {
     struct Kernel_Thread* current = g_currentThread;
 
@@ -483,6 +503,24 @@ struct Kernel_Thread* Start_Kernel_Thread(
 }
 
 /*
+ * Start a user-mode thread (i.e., a process), using given user context.
+ * Returns pointer to the new thread if successful, null otherwise.
+ */
+struct Kernel_Thread*
+Start_User_Thread(struct User_Context* userContext, bool detached)
+{
+    /*
+     * Hints:
+     * - Use Create_Thread() to create a new "raw" thread object
+     * - Call Setup_User_Thread() to get the thread ready to
+     *   execute in user mode
+     * - Call Make_Runnable_Atomic() to schedule the process
+     *   for execution
+     */
+    TODO("Start user thread");
+}
+
+/*
  * Add given thread to the run queue, so that it
  * may be scheduled.  Must be called with interrupts disabled!
  */
@@ -490,7 +528,11 @@ void Make_Runnable(struct Kernel_Thread* kthread)
 {
     KASSERT(!Interrupts_Enabled());
 
-    Enqueue_Thread(&s_runQueue, kthread);
+    { int currentQ = kthread->currentReadyQueue;
+      KASSERT(currentQ >= 0 && currentQ < MAX_QUEUE_LEVEL);
+      kthread->blocked = false;
+      Enqueue_Thread(&s_runQueue[currentQ], kthread);
+    }
 }
 
 /*
@@ -520,9 +562,8 @@ struct Kernel_Thread* Get_Next_Runnable(void)
 {
     struct Kernel_Thread* best = 0;
 
-    best = Find_Best(&s_runQueue);
-    KASSERT(best != 0);
-    Remove_Thread(&s_runQueue, best);
+    /* Find the best thread from the highest-priority run queue */
+    TODO("Find a runnable thread from run queues");
 
 /*
  *    Print("Scheduling %x\n", best);
@@ -688,6 +729,7 @@ void Wait(struct Thread_Queue* waitQueue)
     KASSERT(!Interrupts_Enabled());
 
     /* Add the thread to the wait queue. */
+    current->blocked = true;
     Enqueue_Thread(waitQueue, current);
 
     /* Find another thread to run. */
@@ -743,7 +785,7 @@ void Wake_Up_One(struct Thread_Queue* waitQueue)
 /*
  * Allocate a key for accessing thread-local data.
  */
-int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
+int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor) 
 {
     KASSERT(key);
 
@@ -754,14 +796,14 @@ int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
     *key = s_tlocalKeyCounter++;
 
     End_Int_Atomic(iflag);
-
+  
     return 0;
 }
 
 /*
  * Store a value for a thread-local item
  */
-void Tlocal_Put(tlocal_key_t k, const void *v)
+void Tlocal_Put(tlocal_key_t k, const void *v) 
 {
     const void **pv;
 
@@ -774,7 +816,7 @@ void Tlocal_Put(tlocal_key_t k, const void *v)
 /*
  * Acquire a thread-local value
  */
-void *Tlocal_Get(tlocal_key_t k)
+void *Tlocal_Get(tlocal_key_t k) 
 {
     const void **pv;
 
