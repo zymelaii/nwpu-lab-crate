@@ -34,13 +34,11 @@ int Parse_ELF_Executable(char *exeFileData, ulong_t exeFileLength,
     programHeader *pheader = (programHeader*)(exeFileData + head->phoff);
     exeFormat->entryAddr = head->entry;
     exeFormat->numSegments = head->phnum;
-    Print("ELF size: %d\n", exeFileLength);
     for (int i = 0; i < head->phnum; ++i) {
         exeFormat->segmentList[i].offsetInFile = pheader->offset;
         exeFormat->segmentList[i].lengthInFile = pheader->fileSize;
         exeFormat->segmentList[i].startAddress = pheader->vaddr;
         exeFormat->segmentList[i].sizeInMemory = pheader->memSize;
-        Print("{ ProgramHeader: %d, FileSize: %d, MemSize: %d, VirtualAddress: %d }\n", i, pheader->fileSize, pheader->memSize, pheader->vaddr);
         ++pheader;
     }
     return 0;
