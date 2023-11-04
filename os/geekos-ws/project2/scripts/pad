@@ -1,0 +1,30 @@
+#! /usr/bin/perl
+
+# Pad a file with zero bytes to make its length
+# an even multiple of some value.
+
+# $Revision: 1.1 $
+
+use strict qw(refs vars);
+use FileHandle;
+
+if ( scalar(@ARGV) != 2 ) {
+    print STDERR "usage: pad <filename> <multiple>\n";
+    exit 1;
+}
+
+my $filename = shift @ARGV;
+my $multiple = shift @ARGV;
+
+my $size = (-s $filename);
+die "Couldn't get size of $filename: $!" if ( !defined $size );
+
+my $num_pad = ($multiple - ($size % $multiple)) % $multiple;
+
+my $buf = chr(0) x $num_pad;
+
+my $fh = new FileHandle(">>$filename");
+die "Couldn't open $filename: $!" if ( !defined $fh );
+binmode $fh;
+syswrite $fh, $buf, $num_pad, 0;
+$fh->close();

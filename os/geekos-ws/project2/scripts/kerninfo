@@ -1,0 +1,38 @@
+#! /usr/bin/perl
+
+# A script to analyze the output of "objdump -h" on the
+# kernel executable file.
+
+use strict qw(vars refs);
+use FileHandle;
+
+my $kernfile = shift @ARGV;
+(defined $kernfile) || die "usage: kernsize <kernfile>\n";
+
+my $kern_fh = new FileHandle("<$kernfile");
+(defined $kern_fh) || die "can't open $kernfile: $!\n";
+
+my $objdump_fh = new FileHandle("objdump -h $kernfile|");
+while ( <$objdump_fh> ) {
+    chop;
+    s/^\s+//;
+    my @fields = split(/\s+/, $_);
+    if ( $fields[0] =~ /^[0-9]$/ ) {
+#	print "text start is ", $fields[5], "\n" if $fields[0] eq '0';
+	my $size = hex($fields[2]);
+	my $offset = hex($fields[5]);
+
+	print $fields[0], " (", $fields[1], "): size=$size, offset=$offset\n";
+
+	printf("Word at beginning of section is %08x\n", ReadWord($kern_fh,$offset) );
+    }
+}
+$objdump_fh->close();
+
+sub ReadWord {
+    my ($fh, $offset) = @_;
+    seek $fh, $offset, SEEK_SET;
+    my $buf = 'X' x 4;
+    read $fh, $buf, 4;
+    return unpack('V',$buf);
+}
