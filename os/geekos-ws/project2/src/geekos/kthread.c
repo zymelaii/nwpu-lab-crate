@@ -2,7 +2,7 @@
  * Kernel threads
  * Copyright (c) 2001,2003 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.49 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -16,6 +16,7 @@
 #include <geekos/string.h>
 #include <geekos/kthread.h>
 #include <geekos/malloc.h>
+#include <geekos/user.h>
 
 
 /* ----------------------------------------------------------------------
@@ -117,7 +118,7 @@ static struct Kernel_Thread* Create_Thread(int priority, bool detached)
      */
     kthread = Alloc_Page();
     if (kthread != 0)
-        stackPage = Alloc_Page();    
+        stackPage = Alloc_Page();
 
     /* Make sure that the memory allocations succeeded. */
     if (kthread == 0)
@@ -313,7 +314,32 @@ static void Setup_Kernel_Thread(
      * - The esi register should contain the address of
      *   the argument block
      */
-    TODO("Create a new thread to execute in user mode");
+    ulong_t eflags = EFLAGS_IF;
+	unsigned int csSelector = userContext->csSelector;
+	unsigned int dsSelector = userContext->dsSelector;
+
+    Attach_User_Context(kthread, userContext);
+
+    Push(kthread, dsSelector);                          //<! DS Selector
+    Push(kthread, userContext->stackPointerAddr);       //<! esp
+    Push(kthread, eflags);                              //<! eflags
+    Push(kthread, csSelector);                          //<! CS Selector
+    Push(kthread, userContext->entryAddr);              //<! PC
+    Push(kthread, 0);                                   //<! errno
+    Push(kthread, 0);                                   //<! intno
+
+    Push(kthread, 0);                                   //<! eax
+    Push(kthread, 0);                                   //<! ebx
+    Push(kthread, 0);                                   //<! ecx
+    Push(kthread, 0);                                   //<! edx
+    Push(kthread, userContext->argBlockAddr);           //<! esi
+    Push(kthread, 0);                                   //<! edi
+    Push(kthread, 0);                                   //<! ebp
+
+    Push(kthread, dsSelector);                          //<! ds
+    Push(kthread, dsSelector);                          //<! es
+    Push(kthread, dsSelector);                          //<! fs
+    Push(kthread, dsSelector);                          //<! gs
 }
 
 
@@ -395,7 +421,7 @@ static __inline__ struct Kernel_Thread* Find_Best(struct Thread_Queue* queue)
  * Acquires pointer to thread-local data from the current thread
  * indexed by the given key.  Assumes interrupts are off.
  */
-static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k) 
+static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k)
 {
     struct Kernel_Thread* current = g_currentThread;
 
@@ -515,7 +541,19 @@ Start_User_Thread(struct User_Context* userContext, bool detached)
      * - Call Make_Runnable_Atomic() to schedule the process
      *   for execution
      */
-    TODO("Start user thread");
+    if (userContext == NULL) {
+		return NULL;
+	}
+
+    struct Kernel_Thread *kthread = Create_Thread(PRIORITY_USER, detached);
+    if (kthread == NULL) {
+	    return NULL;
+	}
+
+	Setup_User_Thread(kthread, userContext);
+	Make_Runnable_Atomic(kthread);
+
+    return kthread;
 }
 
 /*
@@ -779,7 +817,7 @@ void Wake_Up_One(struct Thread_Queue* waitQueue)
 /*
  * Allocate a key for accessing thread-local data.
  */
-int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor) 
+int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
 {
     KASSERT(key);
 
@@ -790,14 +828,14 @@ int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
     *key = s_tlocalKeyCounter++;
 
     End_Int_Atomic(iflag);
-  
+
     return 0;
 }
 
 /*
  * Store a value for a thread-local item
  */
-void Tlocal_Put(tlocal_key_t k, const void *v) 
+void Tlocal_Put(tlocal_key_t k, const void *v)
 {
     const void **pv;
 
@@ -810,7 +848,7 @@ void Tlocal_Put(tlocal_key_t k, const void *v)
 /*
  * Acquire a thread-local value
  */
-void *Tlocal_Get(tlocal_key_t k) 
+void *Tlocal_Get(tlocal_key_t k)
 {
     const void **pv;
 

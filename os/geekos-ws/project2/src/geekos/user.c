@@ -2,7 +2,7 @@
  * Common user mode functions
  * Copyright (c) 2001,2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.50 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -98,7 +98,54 @@ int Spawn(const char *program, const char *command, struct Kernel_Thread **pThre
      * If all goes well, store the pointer to the new thread in
      * pThread and return 0.  Otherwise, return an error code.
      */
-    TODO("Spawn a process by reading an executable from a filesystem");
+    int errno = 0;
+
+    char *exeFileData = NULL;
+    ulong_t exeFileLength = 0;
+    if (Read_Fully(program, (void**)&exeFileData, &exeFileLength) != 0) {
+        if (exeFileData != NULL) {
+            Free(exeFileData);
+        }
+        return ENOTFOUND;
+    }
+
+    struct Exe_Format exeFormat;
+    if (errno = Parse_ELF_Executable(exeFileData, exeFileLength, &exeFormat) != 0) {
+	    if (exeFileData != NULL) {
+            Free(exeFileData);
+        }
+	    return errno;
+    }
+
+    struct User_Context *userContext = NULL;
+    if (errno = Load_User_Program(exeFileData, exeFileLength, &exeFormat, command, &userContext)) {
+        if (exeFileData != NULL) {
+            Free(exeFileData);
+        }
+        if (userContext != NULL) {
+            Destroy_User_Context(userContext);
+        }
+	    return errno;
+    }
+
+    if (exeFileData != NULL) {
+        Free(exeFileData);
+    }
+    exeFileData = NULL;
+
+    struct Kernel_Thread *thread = NULL;
+    thread = Start_User_Thread(userContext, false);
+    if (thread == NULL)
+    {
+        if (userContext != NULL) {
+            Destroy_User_Context(userContext);
+        }
+        return ENOMEM;
+    }
+
+    KASSERT(thread->refCount == 2);
+    *pThread = thread;
+    return 0;
 }
 
 /*
@@ -117,6 +164,16 @@ void Switch_To_User_Context(struct Kernel_Thread* kthread, struct Interrupt_Stat
      * the Set_Kernel_Stack_Pointer() and Switch_To_Address_Space()
      * functions.
      */
-    TODO("Switch to a new user address space, if necessary");
-}
+ 	static struct User_Context* s_currentUserContext;
+ 	struct User_Context* userContext = kthread->userContext;
 
+ 	KASSERT(!Interrupts_Enabled());
+
+ 	if (userContext == 0) { return; }
+ 	if (userContext != s_currentUserContext) {
+ 		Switch_To_Address_Space(userContext);
+ 		ulong_t esp0 = ((ulong_t)kthread->stackPage) + PAGE_SIZE;
+ 		Set_Kernel_Stack_Pointer(esp0);
+ 		s_currentUserContext = userContext;
+ 	}
+}

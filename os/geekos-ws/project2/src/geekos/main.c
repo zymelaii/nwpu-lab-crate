@@ -4,7 +4,7 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2004, Iulian Neamtiu <neamtiu@cs.umd.edu>
  * $Revision: 1.51 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -98,12 +98,8 @@ static void Mount_Root_Filesystem(void)
 
 }
 
-
-
-
-
-
 static void Spawn_Init_Process(void)
 {
-    TODO("Spawn the init process");
+    struct Kernel_Thread *pThread;
+	Spawn("/c/shell.exe","/c/shell.exe", &pThread);
 }
