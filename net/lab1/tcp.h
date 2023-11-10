@@ -121,7 +121,10 @@ struct TCPClient {
 };
 
 std::shared_ptr<TCPContext> start_tcp_listener(
-    const char *ip, int port, std::function<void(TCPContext *, int)> worker) {
+    const char                            *ip,
+    int                                    port,
+    std::function<void(TCPContext *, int)> worker,
+    bool                                   start) {
     auto context = std::make_shared<TCPContext>();
 
     memset(&context->addr, 0, sizeof(context->addr));
@@ -132,21 +135,23 @@ std::shared_ptr<TCPContext> start_tcp_listener(
     context->socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (context->socket == INVALID_SOCKET) { return {}; }
 
-    int err = bind(
-        context->socket, (sockaddr *)&context->addr, sizeof(context->addr));
-    if (err == SOCKET_ERROR) { return {}; }
+    if (start) {
+        int err = bind(
+            context->socket, (sockaddr *)&context->addr, sizeof(context->addr));
+        if (err == SOCKET_ERROR) { return {}; }
 
-    std::thread([self = context.get()] {
-        //while (true) { self->accept_once(); }
-        self->accept_once();
-    }).detach();
+        std::thread([self = context.get()] {
+            // while (true) { self->accept_once(); }
+            self->accept_once();
+        }).detach();
 
-    std::thread([self = context.get(), worker] {
-        while (true) {
-            int n = self->clients.size();
-            for (int i = 0; i < n; ++i) { worker(self, i); }
-        }
-    }).detach();
+        std::thread([self = context.get(), worker] {
+            while (true) {
+                int n = self->clients.size();
+                for (int i = 0; i < n; ++i) { worker(self, i); }
+            }
+        }).detach();
+    }
 
     return context;
 }

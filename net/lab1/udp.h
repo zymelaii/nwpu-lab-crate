@@ -96,7 +96,10 @@ struct UDPClient {
 };
 
 std::shared_ptr<UDPContext> start_udp_listener(
-    const char *ip, int port, std::function<void(UDPContext *)> worker) {
+    const char                       *ip,
+    int                               port,
+    std::function<void(UDPContext *)> worker,
+    bool                              start) {
     auto context = std::make_shared<UDPContext>();
 
     memset(&context->addr, 0, sizeof(context->addr));
@@ -107,11 +110,13 @@ std::shared_ptr<UDPContext> start_udp_listener(
     context->socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (context->socket == INVALID_SOCKET) { return {}; }
 
-    int err = bind(
-        context->socket, (sockaddr *)&context->addr, sizeof(context->addr));
-    if (err == SOCKET_ERROR) { return {}; }
+    if (start) {
+        int err = bind(
+            context->socket, (sockaddr *)&context->addr, sizeof(context->addr));
+        if (err == SOCKET_ERROR) { return {}; }
 
-    std::thread(worker, context.get()).detach();
+        std::thread(worker, context.get()).detach();
+    }
 
     return context;
 }

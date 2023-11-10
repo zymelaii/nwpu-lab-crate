@@ -14,6 +14,9 @@ int main(int argc, char *argv[]) {
     int         port                = 5055;
     const char *video_file          = nullptr;
     bool        enable_random_pause = false;
+    const char *ip                  = "127.0.0.1";
+    bool        server_only         = false;
+    bool        client_only         = false;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-udp") == 0) {
@@ -32,6 +35,14 @@ int main(int argc, char *argv[]) {
             video_file = argv[i];
         } else if (strcmp(argv[i], "-pause") == 0) {
             enable_random_pause = true;
+        } else if (strcmp(argv[i], "-ip") == 0) {
+            ++i;
+            if (i >= argc) { break; }
+            ip = argv[i];
+        } else if (strcmp(argv[i], "-server") == 0) {
+            server_only = true;
+        } else if (strcmp(argv[i], "-client") == 0) {
+            client_only = true;
         }
     }
 
@@ -40,33 +51,36 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
-    if (use_udp) {
-        auto udp_server =
-            start_udp_listener("127.0.0.1", port, udp_server_worker);
-        assert(udp_server.get() != nullptr);
-        if (video_trans) {
-            std::thread(
-                udp_file_trans_routine,
-                udp_server,
-                video_file,
-                enable_random_pause)
-                .detach();
+    auto udp_server = start_udp_listener(
+        ip, port, udp_server_worker, use_udp && !client_only);
+    assert(udp_server.get() != nullptr);
+    auto tcp_server = start_tcp_listener(
+        ip, port, tcp_server_worker, !use_udp && !client_only);
+    assert(tcp_server.get() != nullptr);
+
+    if (!server_only) {
+        if (use_udp) {
+            if (video_trans) {
+                std::thread(
+                    udp_file_trans_routine,
+                    udp_server,
+                    video_file,
+                    enable_random_pause)
+                    .detach();
+            } else {
+                std::thread(udp_client_routine, udp_server).detach();
+            }
         } else {
-            std::thread(udp_client_routine, udp_server).detach();
-        }
-    } else {
-        auto tcp_server =
-            start_tcp_listener("127.0.0.1", port, tcp_server_worker);
-        assert(tcp_server.get() != nullptr);
-        if (video_trans) {
-            std::thread(
-                tcp_file_trans_routine,
-                tcp_server,
-                video_file,
-                enable_random_pause)
-                .detach();
-        } else {
-            std::thread(tcp_client_routine, tcp_server).detach();
+            if (video_trans) {
+                std::thread(
+                    tcp_file_trans_routine,
+                    tcp_server,
+                    video_file,
+                    enable_random_pause)
+                    .detach();
+            } else {
+                std::thread(tcp_client_routine, tcp_server).detach();
+            }
         }
     }
 
