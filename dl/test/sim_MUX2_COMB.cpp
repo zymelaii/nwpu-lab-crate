@@ -1,4 +1,4 @@
-#include "VMUX2_SL.h"
+#include "VMUX2_COMB.h"
 
 #include <verilated.h>
 #include <verilated_vcd_c.h>
@@ -9,9 +9,9 @@ int main(int argc, char *argv[]) {
     Verilated::traceEverOn(true);
 
     auto trace = std::make_unique<VerilatedVcdC>();
-    auto dut = std::make_unique<VMUX2_SL>();
+    auto dut = std::make_unique<VMUX2_COMB>();
     dut->trace(trace.get(), 5);
-    trace->open("sim_MUX2_SL.vcd");
+    trace->open("sim_MUX2_COMB.vcd");
 
     vluint64_t simTime = 0;
     for (int i = 0; i < (1 << 3); ++i) {
