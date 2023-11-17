@@ -4,20 +4,20 @@
 #include "ethernet.h"
 #include "crc.h"
 
-void eth_init_header(eth_packet_t* packet) {
-    packet->header.mac_dst.parts[0] = 0x5c;
-    packet->header.mac_dst.parts[1] = 0x3a;
-    packet->header.mac_dst.parts[2] = 0x45;
-    packet->header.mac_dst.parts[3] = 0x2e;
-    packet->header.mac_dst.parts[4] = 0x39;
-    packet->header.mac_dst.parts[5] = 0xcf;
+void eth_init_header(eth_packet_t* packet, const char* src_mac) {
+    auto& src_parts = packet->header.mac_src.parts;
+    for (int i = 0; i < 6; ++i) {
+        int offset   = i * 3;
+        src_parts[i] = strtol(src_mac + offset, nullptr, 16);
+    }
 
-    packet->header.mac_src.parts[0] = 0x2c;
-    packet->header.mac_src.parts[1] = 0x6f;
-    packet->header.mac_src.parts[2] = 0xc9;
-    packet->header.mac_src.parts[3] = 0x36;
-    packet->header.mac_src.parts[4] = 0xa2;
-    packet->header.mac_src.parts[5] = 0x1d;
+    //! broadcast
+    packet->header.mac_dst.parts[0] = 0xff;
+    packet->header.mac_dst.parts[1] = 0xff;
+    packet->header.mac_dst.parts[2] = 0xff;
+    packet->header.mac_dst.parts[3] = 0xff;
+    packet->header.mac_dst.parts[4] = 0xff;
+    packet->header.mac_dst.parts[5] = 0xff;
 
     packet->header.eth_type = ETHERNET_TYPE;
 }

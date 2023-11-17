@@ -5,8 +5,7 @@
 #include <istream>
 
 #define MAX_SIZE       2048
-#define ETHERNET_TYPE  0x0080
-#define DEFAULT_DEVICE 1
+#define ETHERNET_TYPE  0x80
 
 typedef struct mac_s {
     uint8_t parts[6];
@@ -23,7 +22,7 @@ typedef struct eth_packet_s {
     uint8_t      data[0];
 } eth_packet_t;
 
-void eth_init_header(eth_packet_t* packet);
+void eth_init_header(eth_packet_t* packet, const char* src_mac);
 
 size_t eth_load_data(
     eth_packet_t* packet, std::istream& stream, uint32_t (&crc32_table)[256]);

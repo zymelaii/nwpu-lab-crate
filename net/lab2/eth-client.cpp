@@ -17,6 +17,7 @@ int main(int argc, char* argv[]) {
     int         dev_index  = 0;
     bool        list_only  = false;
     const char* input_file = "";
+    const char* src_mac    = "ff:ff:ff:ff:ff:ff";
 
     while (!parser.empty()) {
         const char* arg = nullptr;
@@ -26,6 +27,8 @@ int main(int argc, char* argv[]) {
             dev_index = atoi(arg) - 1;
         } else if (parser.named_arg("-i", arg)) {
             input_file = arg;
+        } else if (parser.named_arg("-src", arg)) {
+            src_mac = arg;
         } else {
             parser.ignore_once();
         }
@@ -67,14 +70,14 @@ int main(int argc, char* argv[]) {
         //! build packet
         eth_packet_t* packet =
             (eth_packet_t*)new uint8_t[sizeof(eth_packet_t) + MAX_SIZE];
-        eth_init_header(packet);
+        eth_init_header(packet, src_mac);
         size_t data_size = eth_load_data(packet, file, crc32_table);
 
         //! send packet
         assert(devices.size() > dev_index);
         pcap_t* handle = pcap_open_live(
             devices[dev_index]->name, //<! device name
-            65536,
+            65535,
             1,
             1000,  //<! timeout
             errbuf //<! error buffer
