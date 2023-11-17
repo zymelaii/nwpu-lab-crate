@@ -4,7 +4,7 @@ project(DigitalLogicDesignLab)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(verilator HINTS $ENV{VERILATOR_ROOT})
+find_package(VERILATOR REQUIRED)
 
 file(GLOB_RECURSE SOURCE_FILES *.sv)
 
