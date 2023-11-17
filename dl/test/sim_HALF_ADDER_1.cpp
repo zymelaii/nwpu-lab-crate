@@ -1,4 +1,4 @@
-#include "VADDER.h"
+#include "VHALF_ADDER_1.h"
 
 #include <verilated.h>
 #include <verilated_vcd_c.h>
@@ -9,9 +9,9 @@ int main(int argc, char *argv[]) {
     Verilated::traceEverOn(true);
 
     auto trace = std::make_unique<VerilatedVcdC>();
-    auto dut = std::make_unique<VADDER>();
+    auto dut = std::make_unique<VHALF_ADDER_1>();
     dut->trace(trace.get(), 5);
-    trace->open("sim_ADDER.vcd");
+    trace->open("sim_HALF_ADDER_1.vcd");
 
     vluint64_t simTime = 0;
     for (int i = 0; i < (1 << 3); ++i) {

@@ -8,12 +8,12 @@ module MUX2_COMB (
 );
 
 always_comb begin
-    if (sel == 0) begin
-        dat_out = dat_in1;
-    end
-    else begin
-        dat_out = dat_in2;
-    end
+  if (sel == 0) begin
+    dat_out = dat_in1;
+  end
+  else begin
+    dat_out = dat_in2;
+  end
 end
 
 endmodule : MUX2_COMB
