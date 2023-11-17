@@ -16,22 +16,23 @@ int main(int argc, char *argv[]) {
     Verilated::traceEverOn(true);
 
     auto trace = std::make_unique<VerilatedVcdC>();
-    auto dut = std::make_unique<VENC_8_3>();
+    auto dut   = std::make_unique<VENC_8_3>();
     dut->trace(trace.get(), 5);
     trace->open("sim_ENC_8_3.vcd");
 
     vluint64_t simTime = 0;
-    int dat_in = 0;
+    int        dat_in  = 0;
     for (int i = 0; i < 8; ++i) {
         dut->dat_in = 1 << i;
         dut->eval();
         trace->dump(simTime);
         auto expected = i;
-        auto actual = dut->dat_out;
-        printf("[%03d] ", simTime);
-        std::cout << std::bitset<8>(dut->dat_in) << " -> "
-                << (int)actual << ", err: " << (int)dut->err << ", expect " << expected
-                << " [" << (actual == expected ? "PASS" : "FAIL") << "]" << std::endl;
+        auto actual   = dut->dat_out;
+        printf("[%03lu] ", simTime);
+        std::cout << std::bitset<8>(dut->dat_in) << " -> " << (int)actual
+                  << ", err: " << (int)dut->err << ", expect " << expected
+                  << " [" << (actual == expected ? "PASS" : "FAIL") << "]"
+                  << std::endl;
         ++simTime;
     }
 
@@ -41,11 +42,12 @@ int main(int argc, char *argv[]) {
         dut->eval();
         trace->dump(simTime);
         auto expected = 0;
-        auto actual = dut->dat_out;
-        printf("[%03d] ", simTime);
-        std::cout << std::bitset<8>(dut->dat_in) << " -> "
-                << (int)actual << ", err: " << (int)dut->err << ", expect " << expected
-                << " [" << (actual == expected ? "PASS" : "FAIL") << "]" << std::endl;
+        auto actual   = dut->dat_out;
+        printf("[%03lu] ", simTime);
+        std::cout << std::bitset<8>(dut->dat_in) << " -> " << (int)actual
+                  << ", err: " << (int)dut->err << ", expect " << expected
+                  << " [" << (actual == expected ? "PASS" : "FAIL") << "]"
+                  << std::endl;
         ++simTime;
     }
 

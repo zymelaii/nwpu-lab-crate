@@ -32,11 +32,11 @@ ADDER_1 u_adder_low
 
 ADDER_1 u_adder_high
 (
-  .lhs       (lhs[1]    ),
-  .rhs       (rhs[1]    ),
-  .carry_in  (carry     ),
-  .sum       (sum[1]    ),
-  .carry_out (carry_out )
+  .lhs       (lhs[1]   ),
+  .rhs       (rhs[1]   ),
+  .carry_in  (carry    ),
+  .sum       (sum[1]   ),
+  .carry_out (carry_out)
 );
 
 endmodule : ADDER_2
