@@ -6,14 +6,8 @@ module COMP_1 (
   output logic gt
 );
 
-assign eq = ~lt & ~gt;
-
-always_comb begin
-  unique casez ({lhs, rhs})
-    2'b10: {lt, gt} = 2'b01;
-    2'b01: {lt, gt} = 2'b10;
-    default: {lt, gt} = 2'b00;
-  endcase
-end
+assign eq = ~(lhs ^ rhs);
+assign lt = lhs & ~rhs;
+assign gt = ~lhs & rhs;
 
 endmodule : COMP_1
