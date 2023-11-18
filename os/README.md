@@ -8,20 +8,26 @@
 
 OS 目标架构：i386
 
-讲义推荐环境：
+<details>
+<summary><b>讲义推荐环境</b></summary><br/>
 
 - ubuntu 10.04.2-desktop-i386
 - i486-linux-gnu (GCC) 4.4.3
 - nasm 2.08.02
 - bochs 2.6.8
 
-个人环境：
+</details>
+
+<details>
+<summary><b>个人环境</b></summary><br/>
 
 - wsl2-archlinux 5.10.102.1-microsoft-standard-WSL2
 - i386-elf-gcc (GCC) 12.2.0
 - nasm 2.16.01
 - qemu-system-i386 8.1.1
 - nushell 0.85.0
+
+</details>
 
 # 实验内容
 
@@ -31,7 +37,8 @@ OS 目标架构：i386
 
 实验内容：搭建环境+学习使用环境+读讲义
 
-### 内容 1
+<details>
+<summary><b>内容 1</b></summary><br/>
 
 > 使用 x86 汇编编写 boot 程序，实现输出 `Hello, OS world!`，并在虚拟机中引导启动。
 
@@ -77,7 +84,10 @@ qemu-system-i386 -drive format=raw,file=a.img -display curses
 > - 新开终端使用 ps 查询 qemu-system-? 进程的 pid，并使用 kill 杀死进程。
 > - 在启动 qemu-system-? 时使用 -s 选项启动 gdb 的 tcp 服务，并启动 gdb 连接到 qemu 启动的 remote，连接成功用在 gdb 中使用 monitor quit 命令或 kill 命令退出 qumy-system-? 进程。
 
-### 内容 2
+</details>
+
+<details>
+<summary><b>内容 2</b></summary><br/>
 
 > 启动 geekos project0
 
@@ -131,13 +141,16 @@ qemu-system-i386 -boot a -fda fd.img -m 10M -display curses -m 10M
 
 使用 `make run` 运行，完成实验。
 
+</details>
+
 ## 第壹次实验
 
 实验目的：了解中断控制
 
 实验内容：完成 geekos project0
 
-### 内容 1
+<details>
+<summary><b>内容 1</b></summary><br/>
 
 > 启动线程处理键盘按键消息的回显
 
@@ -223,7 +236,10 @@ void cb_keyboard_echo(ulong_t arg) {
 Start_Kernel_Thread(cb_keyboard_echo, 0, PRIORITY_NORMAL, 1);
 ```
 
-### 内容 2
+</details>
+
+<details>
+<summary><b>内容 2</b></summary><br/>
 
 > 启动多个输出线程处理键盘按键消息的回显
 
@@ -241,7 +257,10 @@ void cb_stable_print(ulong_t arg) {
 }
 ```
 
-### 内容 3
+</details>
+
+<details>
+<summary><b>内容 3</b></summary><br/>
 
 > 实现更有意思的线程函数
 
@@ -319,7 +338,12 @@ char get_printable_char() {
 }
 ```
 
+</details>
+
 ## 第肆次实验
+
+<details>
+<summary><b>《赠后人书》</b></summary><br/>
 
 我囸，对着指导书抄了一下不停地抄了四个小时好不容易抄完了，测，跑一下直接给我报 GP 异常。
 
@@ -398,3 +422,5 @@ Gitee 上再拉一个。
 好了，就决定了是 8M 了，虽然 4M 也行。
 
 交了，谁爱做谁做。
+
+</details>
