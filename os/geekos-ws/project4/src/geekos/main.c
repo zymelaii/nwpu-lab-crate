@@ -4,7 +4,7 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2004, Iulian Neamtiu <neamtiu@cs.umd.edu>
  * $Revision: 1.51 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -42,8 +42,6 @@
 #define ROOT_DEVICE "ide0"
 #define ROOT_PREFIX "c"
 #endif
-
-#define INIT_PROGRAM "/" ROOT_PREFIX "/shell.exe"
 
 static void Mount_Root_Filesystem(void);
 static void Spawn_Init_Process(void);
@@ -95,10 +93,8 @@ static void Mount_Root_Filesystem(void)
 
 static void Spawn_Init_Process(void)
 {
-    // TODO("Spawn the init process");
-    const char *command = "shell.exe";
     struct Kernel_Thread *pThread;
-    int sh_pid = Spawn(INIT_PROGRAM, command, &pThread);
+    int sh_pid = Spawn("/" ROOT_PREFIX "/shell.exe", "shell.exe", &pThread);
     if (sh_pid == 0)
     {
         Print("Failed to spawn init process: error code = %d\n", sh_pid);

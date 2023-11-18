@@ -2,7 +2,7 @@
  * User-mode Console I/O
  * Copyright (c) 2003, David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.25 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -61,6 +61,7 @@ void Read_Line(char* buf, size_t bufSize)
     bufSize--;
     do {
 	k = Get_Key();
+
 	if ((k & KEY_SPECIAL_FLAG) || (k & KEY_RELEASE_FLAG))
 	    continue;
 
@@ -104,8 +105,9 @@ void Read_Line(char* buf, size_t bufSize)
 	    continue;
 	}
 
-	if (s_echo)
+	if (s_echo) {
 	    Put_Char(k);
+	}
 
 	if (k == '\n')
 	    done = true;
@@ -152,4 +154,3 @@ void Print(const char *fmt, ...)
     Format_Output(&s_outputSink, fmt, args);
     va_end(args);
 }
-

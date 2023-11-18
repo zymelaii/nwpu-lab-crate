@@ -327,19 +327,21 @@ depend : $(GENERATED_LIBC_SRCS)
 depend.mak :
 	touch $@
 
+MEMORY ?= 8M
+
 run: fd.img diskc.img
 	@qemu-system-i386 \
 		-boot a -drive format=raw,index=0,if=floppy,file=$< \
 		-drive format=raw,file=diskc.img \
 		-display curses \
-		-m 8M
+		-m $(MEMORY)
 
 run-debug: fd.img diskc.img
 	@qemu-system-i386 \
 		-boot a -drive format=raw,index=0,if=floppy,file=$< \
 		-drive format=raw,file=diskc.img \
 		-display curses \
-		-m 8M \
+		-m $(MEMORY) \
 		-s -S
 
 include depend.mak
