@@ -3,7 +3,7 @@
  * Copyright (c) 2001,2003 David H. Hovemeyer <daveho@cs.umd.edu>
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * $Revision: 1.22 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -14,6 +14,7 @@
 #include <geekos/irq.h>
 #include <geekos/kthread.h>
 #include <geekos/timer.h>
+#include <geekos/mem.h>
 
 #define MAX_TIMER_EVENTS	100
 
@@ -21,6 +22,9 @@ static int timerDebug = 0;
 static int timeEventCount;
 static int nextEventID;
 timerEvent pendingTimerEvents[MAX_TIMER_EVENTS];
+
+extern struct Page *g_pageList;
+extern int unsigned s_numPages;
 
 /*
  * Global tick counter
@@ -65,6 +69,18 @@ int g_Quantum = DEFAULT_MAX_TICKS;
  * Private functions
  * ---------------------------------------------------------------------- */
 
+static void Update_Page_Age() {
+    for (int i = 0; i < s_numPages; ++i) {
+        struct Page *page = &g_pageList[i];
+        if ((page->flags & PAGE_PAGEABLE) && (page->flags & PAGE_ALLOCATED)) {
+            if (page->entry->accesed) {
+                page->entry->accesed = 0;
+                page->clock = g_numTicks;
+            }
+        }
+    }
+}
+
 static void Timer_Interrupt_Handler(struct Interrupt_State* state)
 {
     int i;
@@ -79,7 +95,7 @@ static void Timer_Interrupt_Handler(struct Interrupt_State* state)
     /* update timer events */
     for (i=0; i < timeEventCount; i++) {
 	if (pendingTimerEvents[i].ticks == 0) {
-	    if (timerDebug) Print("timer: event %d expired (%d ticks)\n", 
+	    if (timerDebug) Print("timer: event %d expired (%d ticks)\n",
 	        pendingTimerEvents[i].id, pendingTimerEvents[i].origTicks);
 	    (pendingTimerEvents[i].callBack)(pendingTimerEvents[i].id);
 	} else {

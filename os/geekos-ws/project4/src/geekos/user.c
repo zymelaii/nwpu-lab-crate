@@ -2,7 +2,7 @@
  * Common user mode functions
  * Copyright (c) 2001,2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.50 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -98,7 +98,67 @@ int Spawn(const char *program, const char *command, struct Kernel_Thread **pThre
      * If all goes well, store the pointer to the new thread in
      * pThread and return 0.  Otherwise, return an error code.
      */
-    TODO("Spawn a process by reading an executable from a filesystem");
+            int res;
+
+    /* 读取 ELF 文件 */
+    char *exeFileData = NULL;
+    ulong_t exeFileLength = 0;
+    res = Read_Fully(program, (void**)&exeFileData, &exeFileLength);
+    bool userDebug = false;
+    if (res != 0)
+    {
+//	if (userDebug)
+//	    Print("Error! Failed to read file %s\n", program);
+	if (exeFileData != NULL) Free(exeFileData);
+	return ENOTFOUND;
+    }
+//    if (userDebug) Print("Read_Fully OK\n");
+
+    /* 分析 ELF 文件 */
+    struct Exe_Format exeFormat;
+    res = Parse_ELF_Executable(exeFileData, exeFileLength, &exeFormat);
+    if (res != 0)
+    {
+//	if (userDebug)
+//	    Print("Error! Failed to parse ELF file\n");
+	if (exeFileData != NULL) Free(exeFileData);
+	return res;
+    }
+//    if (userDebug) Print("Parse_ELF_Executable OK\n");
+
+    /* 加载用户程序 */
+    struct User_Context *userContext = NULL;
+    res = Load_User_Program(exeFileData, exeFileLength, &exeFormat, command, &userContext);
+    if (res != 0)
+    {
+//	if (userDebug)
+//	    Print("Error! Failed to Load User Program\n");
+	if (exeFileData != NULL) Free(exeFileData);
+	if (userContext != NULL) Destroy_User_Context(userContext);
+	return res;
+    }
+    if (exeFileData != NULL) Free(exeFileData);
+    exeFileData = NULL;
+//    if (userDebug) Print("Load_User_Program OK\n");
+
+    /* 开始用户进程 */
+    struct Kernel_Thread *thread = NULL;
+    thread = Start_User_Thread(userContext, false);
+    /* 超出内存 创建新进程失败 */
+    if (thread == NULL)
+    {
+	if (userDebug)
+             Print("Error! Failed to Start User Thread\n");
+        if (userContext != NULL) Destroy_User_Context(userContext);
+             return ENOMEM;
+    }
+    if (userDebug) Print("Start_User_Thread OK\n");
+
+    KASSERT(thread->refCount == 2);
+    /* 返回核心进程的指针 */
+    *pThread = thread;
+
+    return 0;
 }
 
 /*
@@ -117,6 +177,25 @@ void Switch_To_User_Context(struct Kernel_Thread* kthread, struct Interrupt_Stat
      * the Set_Kernel_Stack_Pointer() and Switch_To_Address_Space()
      * functions.
      */
-    TODO("Switch to a new user address space, if necessary");
-}
+    static struct User_Context* s_currentUserContext;
 
+	//指向User_Conetxt的指针，并初始化为准备切换的进程
+ 	struct User_Context* userContext = kthread->userContext;
+
+ 	KASSERT(!Interrupts_Enabled());
+
+ 	//userContext为0表示此进程为核心态进程就不用切换地址空间
+ 	if (userContext == 0) return;
+
+ 	if (userContext != s_currentUserContext)
+ 	{
+		//为用户态进程时则切换地址空间
+ 		Switch_To_Address_Space(userContext);
+ 		//新进程的核心栈指针
+ 		ulong_t esp0 = ((ulong_t)kthread->stackPage) + PAGE_SIZE;
+		//设置内核堆栈指针
+ 		Set_Kernel_Stack_Pointer(esp0);
+ 		//保存新的 userContxt
+ 		s_currentUserContext = userContext;
+ 	}
+}

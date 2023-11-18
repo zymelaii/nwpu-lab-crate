@@ -3,7 +3,7 @@
  * Copyright (c) 2001,2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * $Revision: 1.42 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -15,11 +15,15 @@
 #include <geekos/segment.h>
 #include <geekos/elf.h>
 #include <geekos/paging.h>
+#include <geekos/gdt.h>
 
 struct File;
 
 /* Number of files user process can have open. */
 #define USER_MAX_FILES		10
+#define USER_VM_START       0x80000000
+#define USER_VM_LEN         (0x70000 * PAGE_SIZE)
+#define DEFAULT_STACK_SIZE  (2 * PAGE_SIZE)
 
 /*
  * A user mode context which can be attached to a Kernel_Thread,

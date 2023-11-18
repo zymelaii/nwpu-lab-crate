@@ -3,7 +3,7 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.46 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -115,5 +115,9 @@ void Free_Space_On_Paging_File(int pagefileIndex);
 void Write_To_Paging_File(void *paddr, ulong_t vaddr, int pagefileIndex);
 void Read_From_Paging_File(void *paddr, ulong_t vaddr, int pagefileIndex);
 
+uint_t lin_to_phyaddr(pde_t *page_dir, uint_t lin_addr);
+int Alloc_User_Page(pde_t *pageDir, uint_t startAddress, uint_t sizeInMemory);
+void Free_User_Pages(struct User_Context *context);
+bool Copy_User_Page(pde_t *pagedir, uint_t user_dest, char *src, uint_t bytes);
 
 #endif

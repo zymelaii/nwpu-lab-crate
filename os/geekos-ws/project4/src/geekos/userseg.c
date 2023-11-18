@@ -2,7 +2,7 @@
  * Segmentation-based user mode implementation
  * Copyright (c) 2001,2003 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.23 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -31,7 +31,7 @@
 /* ----------------------------------------------------------------------
  * Private functions
  * ---------------------------------------------------------------------- */
-
+int userSegDebug = 0;
 
 /*
  * Create a new user context of given size
@@ -40,7 +40,59 @@
 /* TODO: Implement
 static struct User_Context* Create_User_Context(ulong_t size)
 */
+static struct User_Context* Create_User_Context(ulong_t size)
+{
+	struct User_Context *userContext;
+	size = Round_Up_To_Page(size);
+	userContext = (struct User_Context *)Malloc(sizeof(struct User_Context));
+	/* 内存分配成功则继续为 userContext 下的 memory 分配内存空间 */
+	if (userContext == NULL)
+	{
+	     if (userSegDebug) Print("Error! Out of Memory Space\n");
+	     return NULL;
+	}
+	userContext->memory = (char *)Malloc(size);
+	if (userContext->memory == NULL)
+	{
+		 if (userSegDebug) Print("Error! Out of Memory Space\n");
+		 Free(userContext);
+		 return NULL;
+	}
+	memset(userContext->memory, '\0', size);
+	userContext->size = size;
 
+    /* 新建一个 LDT 描述符 */
+    userContext->ldtDescriptor = Allocate_Segment_Descriptor();
+    if (userContext->ldtDescriptor == NULL)
+    {
+	     if (userSegDebug)
+	         Print("Error! Failed to Allocate Segment Descriptor\n");
+	     Free(userContext->memory);
+		 return NULL;
+	}
+	/* 初始化段描述符 */
+	Init_LDT_Descriptor(userContext->ldtDescriptor, userContext->ldt, NUM_USER_LDT_ENTRIES);
+	/* 新建一个 LDT 选择子 */
+	userContext->ldtSelector = Selector(KERNEL_PRIVILEGE, true, Get_Descriptor_Index(userContext->ldtDescriptor));
+	/* 新建一个代码段描述符 */
+	Init_Code_Segment_Descriptor(&userContext->ldt[0], (ulong_t)userContext->memory, size / PAGE_SIZE, USER_PRIVILEGE);
+	/* 新建一个数据段描述符 */
+	Init_Data_Segment_Descriptor(&userContext->ldt[1], (ulong_t)userContext->memory, size / PAGE_SIZE, USER_PRIVILEGE);
+	/* 新建数据段和代码段选择子 */
+	userContext->csSelector = Selector(USER_PRIVILEGE, false, 0);
+	userContext->dsSelector = Selector(USER_PRIVILEGE, false, 1);
+	/* 将引用数清零 */
+	userContext->refCount = 0;
+
+	 if (userSegDebug)
+	 {
+		  Print(" virtSpace    = %lx\n", (ulong_t)userContext->memory);
+		  Print(" virtSize     = %lx\n", (ulong_t)size / PAGE_SIZE);
+		  Print(" codeSelector = %x\n", userContext->csSelector);
+		  Print(" dataSelector = %x\n", userContext->dsSelector);
+	 }
+	 return userContext;
+}
 
 static bool Validate_User_Memory(struct User_Context* userContext,
     ulong_t userAddr, ulong_t bufSize)
@@ -73,7 +125,13 @@ void Destroy_User_Context(struct User_Context* userContext)
      * - don't forget to free the segment descriptor allocated
      *   for the process's LDT
      */
-    TODO("Destroy a User_Context");
+ 	//释放 LDT descriptor
+ 	Free_Segment_Descriptor(userContext->ldtDescriptor);
+	userContext->ldtDescriptor=0;
+ 	Free(userContext->memory);//释放内存空间
+	userContext->memory=0;
+ 	Free(userContext);//释放userContext本身占用的内存
+	userContext=0;
 }
 
 /*
@@ -109,7 +167,58 @@ int Load_User_Program(char *exeFileData, ulong_t exeFileLength,
      *   address, argument block address, and initial kernel stack pointer
      *   address
      */
-    TODO("Load a user executable into a user memory space using segmentation");
+    unsigned int i;
+	struct User_Context *userContext = NULL;
+
+    /* 要分配的最大内存空间 */
+    ulong_t maxva = 0;
+    /* 计算用户态进程所需的最大内存空间 */
+    for (i = 0; i < exeFormat->numSegments; i++)
+    {
+	    struct Exe_Segment *segment = &exeFormat->segmentList[i];
+	    ulong_t topva = segment->startAddress + segment->sizeInMemory;
+	    if (topva > maxva) maxva = topva;
+	}
+    /* 程序参数数目 */
+    unsigned int numArgs;
+    /* 获取参数块的大小 */
+    ulong_t argBlockSize;
+    Get_Argument_Block_Size(command, &numArgs, &argBlockSize);
+    /* 用户进程大小 = 参数块总大小 + 进程堆栈大小(8192) */
+    ulong_t size = Round_Up_To_Page(maxva) + DEFAULT_USER_STACK_SIZE;
+    /* 参数块地址 */
+    ulong_t argBlockAddr = size;
+    size += argBlockSize;
+    /* 按相应大小创建一个进程 */
+    userContext = Create_User_Context(size);
+    /* 如果进程创建失败则返回错误信息 */
+    if (userContext == NULL)
+    {
+	    if (userSegDebug)
+		    Print("Error! Failed to Create User Context\n");
+	    return -1;
+	}
+
+    /* 将用户程序中的各段内容复制到分配的用户内存空间 */
+    for (i = 0; i < exeFormat->numSegments; i++)
+    {
+	    struct Exe_Segment *segment = &exeFormat->segmentList[i];
+	    memcpy(userContext->memory + segment->startAddress,
+			    exeFileData + segment->offsetInFile,
+			    segment->lengthInFile);
+	}
+
+    /* 格式化参数块 */
+    Format_Argument_Block(userContext->memory + argBlockAddr, numArgs, argBlockAddr, command);
+    /* 初始化数据段、堆栈段及代码段信息 */
+    userContext->entryAddr = exeFormat->entryAddr;
+    userContext->argBlockAddr = argBlockAddr;
+    userContext->stackPointerAddr = argBlockAddr;
+
+    /* 将初始化完毕的 User_Context 赋给*pUserContext */
+    *pUserContext = userContext;
+
+    return 0;
 }
 
 /*
@@ -135,8 +244,15 @@ bool Copy_From_User(void* destInKernel, ulong_t srcInUser, ulong_t bufSize)
      * - make sure the user buffer lies entirely in memory belonging
      *   to the process
      */
-    TODO("Copy memory from user buffer to kernel buffer");
-    Validate_User_Memory(NULL,0,0); /* delete this; keeps gcc happy */
+    struct User_Context* userContext = g_currentThread->userContext;
+	/* 如果访问的用户内存空间非法(越界访问)，则直接返回失败 */
+	if (!Validate_User_Memory(userContext, srcInUser, bufSize))
+		return false;
+	/* 拷贝当前用户内存空间数据到系统内核空间 */
+	memcpy(destInKernel, userContext->memory + srcInUser, bufSize);
+	/* 拷贝成功则返回 1 */
+	return true;
+    //Validate_User_Memory(NULL,0,0); /* delete this; keeps gcc happy */
 }
 
 /*
@@ -156,7 +272,14 @@ bool Copy_To_User(ulong_t destInUser, void* srcInKernel, ulong_t bufSize)
     /*
      * Hints: same as for Copy_From_User()
      */
-    TODO("Copy memory from kernel buffer to user buffer");
+    struct User_Context* userContext = g_currentThread->userContext;
+	/* 如果需要拷贝的内容超出用户内存空间(越界)，则直接返回失败 */
+	if (!Validate_User_Memory(userContext, destInUser, bufSize))
+		return false;
+	/* 拷贝当前系统内核空间数据到用户内存空间 */
+	memcpy(userContext->memory + destInUser, srcInKernel, bufSize);
+	/* 拷贝成功则返回 1 */
+	return true;
 }
 
 /*
@@ -171,6 +294,11 @@ void Switch_To_Address_Space(struct User_Context *userContext)
      * Hint: you will need to use the lldt assembly language instruction
      * to load the process's LDT by specifying its LDT selector.
      */
-    TODO("Switch to user address space using segmentation/LDT");
+    /* 切换到新的局部描述符表(LDT) */
+	ushort_t ldtSelector = userContext->ldtSelector;
+	__asm__ __volatile__ (
+	"lldt %0"
+	:
+	: "a" (ldtSelector)
+	);
 }
-

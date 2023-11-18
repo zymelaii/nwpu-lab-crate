@@ -2,7 +2,7 @@
  * Kernel threads
  * Copyright (c) 2001,2003 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.49 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -16,6 +16,36 @@
 #include <geekos/string.h>
 #include <geekos/kthread.h>
 #include <geekos/malloc.h>
+#include <geekos/user.h>
+
+
+/* ----------------------------------------------------------------------
+ * tianjia
+ * ---------------------------------------------------------------------- */
+
+/*
+* 添加调度策略宏定义
+* 0 -> 轮转调度 ROUND_ROBIN(RR)
+* 1 -> 多级反馈队列调度 MULTILEVEL_FEEDBACK(MLF)
+*/
+
+#define ROUND_ROBIN         0
+#define MULTILEVEL_FEEDBACK 1
+
+/* 添加调度策略全局变量 */
+/* 之前的调度策略 */
+int g_preSchedulingPolicy;
+/* 当前的调度策略 */
+int g_curSchedulingPolicy;
+
+/* 外部引入时间片参数变量 */
+extern int g_Quantum;
+
+/* 修改调度策略函数声明，以便在 Sys_SetSchedulingPolicy 中使用 */
+int Chang_Scheduling_Policy(int policy, int quantum);
+
+
+static struct Kernel_Thread *IdleThread;
 
 
 /* ----------------------------------------------------------------------
@@ -66,6 +96,8 @@ static struct Thread_Queue s_reaperWaitQueue;
  */
 static unsigned int s_tlocalKeyCounter = 0;
 static tlocal_destructor_t s_tlocalDestructors[MAX_TLOCAL_KEYS];
+
+
 
 /* ----------------------------------------------------------------------
  * Private functions
@@ -119,7 +151,7 @@ static struct Kernel_Thread* Create_Thread(int priority, bool detached)
      */
     kthread = Alloc_Page();
     if (kthread != 0)
-        stackPage = Alloc_Page();    
+        stackPage = Alloc_Page();
 
     /* Make sure that the memory allocations succeeded. */
     if (kthread == 0)
@@ -315,7 +347,45 @@ static void Setup_Kernel_Thread(
      * - The esi register should contain the address of
      *   the argument block
      */
-    TODO("Create a new thread to execute in user mode");
+    /*
+     * Push the argument to the thread start function, and the
+     * return address (the Shutdown_Thread function, so the thread will
+     * go away cleanly when the start function returns).
+     */
+    ulong_t eflags = EFLAGS_IF;
+	unsigned int csSelector = userContext->csSelector;  /* CS 选择子 */
+	unsigned int dsSelector = userContext->dsSelector;  /* DS 选择子 */
+
+    /* 调用 Attach_User_Context 加载用户上下文 */
+    Attach_User_Context(kthread, userContext);
+
+    /* 初始化用户态进程堆栈，使之看上去像刚被中断运行一样 */
+    /* 分别调用 Push 函数将以下数据压入堆栈 */
+    Push(kthread, dsSelector);  /* DS 选择子 */
+    Push(kthread, userContext->stackPointerAddr);  /* 堆栈指针 */
+    Push(kthread, eflags);  /* Eflags */
+    Push(kthread, csSelector);  /* CS 选择子 */
+    Push(kthread, userContext->entryAddr);  /* 程序计数器 */
+    Push(kthread, 0);  /* 错误代码(0) */
+    Push(kthread, 0);  /* 中断号(0) */
+
+//    if (uthreadDebug)
+//	    Print("Entry addr=%lx\n", userContext->entryAddr);
+
+    /* 初始化通用寄存单元，向 esi 传递参数块地址 */
+    Push(kthread, 0);  /* eax */
+    Push(kthread, 0);  /* ebx */
+    Push(kthread, 0);  /* ecx */
+    Push(kthread, 0);  /* edx */
+    Push(kthread, userContext->argBlockAddr);  /* esi */
+    Push(kthread, 0);  /* edi */
+    Push(kthread, 0);  /* ebp */
+
+    /* 初始化数据段寄存单元 */
+    Push(kthread, dsSelector);  /* ds */
+    Push(kthread, dsSelector);  /* es */
+    Push(kthread, dsSelector);  /* fs */
+    Push(kthread, dsSelector);  /* gs */
 }
 
 
@@ -397,7 +467,7 @@ static __inline__ struct Kernel_Thread* Find_Best(struct Thread_Queue* queue)
  * Acquires pointer to thread-local data from the current thread
  * indexed by the given key.  Assumes interrupts are off.
  */
-static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k) 
+static __inline__ const void** Get_Tlocal_Pointer(tlocal_key_t k)
 {
     struct Kernel_Thread* current = g_currentThread;
 
@@ -445,6 +515,8 @@ static void Tlocal_Exit(struct Kernel_Thread* curr) {
 
 void Init_Scheduler(void)
 {
+    g_preSchedulingPolicy = ROUND_ROBIN;
+    g_curSchedulingPolicy = MULTILEVEL_FEEDBACK;
     struct Kernel_Thread* mainThread = (struct Kernel_Thread *) KERN_THREAD_OBJ;
 
     /*
@@ -517,7 +589,27 @@ Start_User_Thread(struct User_Context* userContext, bool detached)
      * - Call Make_Runnable_Atomic() to schedule the process
      *   for execution
      */
-    TODO("Start user thread");
+    /* 如果传入的用户上下文字段为空(非用户态进程)则返回错误 */
+	if (userContext == NULL)
+	{
+//		if (uthreadDebug) Print("Error! Not a user thread\n");
+		return NULL;
+	}
+
+    /* 建立用户态进程 */
+    struct Kernel_Thread *kthread = Create_Thread(PRIORITY_USER, detached);
+    if (kthread == NULL)
+    {
+//	    if (uthreadDebug) Print("Error! Failed to Create Thread\n");
+	    return NULL;
+	}
+	Setup_User_Thread(kthread, userContext);
+
+	/* 将新创建的进程加入就绪进程队列 */
+	Make_Runnable_Atomic(kthread);
+
+    /* 新用户态进程创建成功，返回指向该进程的指针 */
+    return kthread;
 }
 
 /*
@@ -529,11 +621,59 @@ void Make_Runnable(struct Kernel_Thread* kthread)
     KASSERT(!Interrupts_Enabled());
 
     { int currentQ = kthread->currentReadyQueue;
+      /* ------ 根据当前调度策略安排线程应该进入的队列 ------ */
+      if (g_curSchedulingPolicy == ROUND_ROBIN)
+           currentQ = 0;
+      else if (kthread == IdleThread)
+           currentQ = MAX_QUEUE_LEVEL - 1;
       KASSERT(currentQ >= 0 && currentQ < MAX_QUEUE_LEVEL);
       kthread->blocked = false;
       Enqueue_Thread(&s_runQueue[currentQ], kthread);
     }
 }
+
+
+
+int Chang_Scheduling_Policy(int policy, int quantum)
+{
+     /* 如果调度策略不同，则修改线程队列 */
+     if (policy != g_curSchedulingPolicy)
+     {
+         /* MLF -> RR */
+         if (policy == ROUND_ROBIN)
+         {
+             /* 从最后一个线程队列(此处为 Q3)开始将其中的所有线程依次移动到前一个队列，
+                               直到所有线程都移动到 Q0 队列 */
+             int i;
+             for (i = MAX_QUEUE_LEVEL - 1; i > 0; i--)
+                 Append_Thread_Queue(&s_runQueue[i - 1], &s_runQueue[i]);
+         }
+        /* RR -> MLF */
+         else
+         {
+             /* 判断 Idle(空闲)线程是否在 Q0 队列 */
+             if (Is_Member_Of_Thread_Queue(&s_runQueue[0], IdleThread))
+             {
+                 /* 将 Idle 线程从 Q0 队列移出 */
+                 Remove_Thread(&s_runQueue[0], IdleThread);
+                 /* 将 Idle 线程加入到最后一个队列(此处为 Q3) */
+                 Enqueue_Thread(&s_runQueue[MAX_QUEUE_LEVEL - 1], IdleThread);
+             }
+         }
+         /* 保存原来的调度策略 */
+         g_preSchedulingPolicy = g_curSchedulingPolicy;
+         /* 将全局变量设置为对应的输入值 */
+         g_curSchedulingPolicy = policy;
+         Print("g_schedulingPolicy = %d\n", g_curSchedulingPolicy);
+     }
+     g_Quantum = quantum;
+     Print("g_Quantum = %d\n", g_Quantum);
+
+     return 0;
+}
+
+
+
 
 /*
  * Atomically make a thread runnable.
@@ -560,15 +700,44 @@ struct Kernel_Thread* Get_Current(void)
  */
 struct Kernel_Thread* Get_Next_Runnable(void)
 {
-    struct Kernel_Thread* best = 0;
-
     /* Find the best thread from the highest-priority run queue */
-    TODO("Find a runnable thread from run queues");
+     KASSERT(g_curSchedulingPolicy == ROUND_ROBIN ||
+g_curSchedulingPolicy == MULTILEVEL_FEEDBACK);
 
+    /* 查找下一个被调度的线程 */
+     struct Kernel_Thread* best = NULL;
+
+     if (g_curSchedulingPolicy == ROUND_ROBIN)
+     {
+         /* 轮询调度策略：只需要从 Q0 队列找优先级最高的线程取出 */
+         best = Find_Best(&s_runQueue[0]);
+         /* 如果找到了符合条件的线程则将其从队列中移出 */
+         if (best != NULL)
+             Remove_Thread(&s_runQueue[0], best);
+     }
+     else
+     {
+         int i;
+         for (i = 0; i < MAX_QUEUE_LEVEL; i++)
+         {
+             /* 从最高层队列依次向下查找本层队列中最靠近队首的线程，
+                               如果找到则不再向下继续查找 */
+             best = Get_Front_Of_Thread_Queue(&s_runQueue[i]);
+             if (best != NULL)
+             {
+                 Remove_Thread(&s_runQueue[i], best);
+                 break;
+             }
+         }
+     }
+
+    /* 如果当前没有可执行进程，则至少应该找到 Idle 线程 */
+     KASSERT(best != NULL);
+
+     return best;
 /*
  *    Print("Scheduling %x\n", best);
  */
-    return best;
 }
 
 /*
@@ -728,6 +897,11 @@ void Wait(struct Thread_Queue* waitQueue)
 
     KASSERT(!Interrupts_Enabled());
 
+     /* 如果为 MLF 调度策略则下次运行时线程应进入高一优先级的队列(即队列数减一)
+        RR 调度策略时不受影响，因为已经运行在最高优先级的线程队列 */
+     if(current->pid != IdleThread->pid && current->currentReadyQueue > 0)
+        --current->currentReadyQueue;
+
     /* Add the thread to the wait queue. */
     current->blocked = true;
     Enqueue_Thread(waitQueue, current);
@@ -785,7 +959,7 @@ void Wake_Up_One(struct Thread_Queue* waitQueue)
 /*
  * Allocate a key for accessing thread-local data.
  */
-int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor) 
+int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
 {
     KASSERT(key);
 
@@ -796,14 +970,14 @@ int Tlocal_Create(tlocal_key_t *key, tlocal_destructor_t destructor)
     *key = s_tlocalKeyCounter++;
 
     End_Int_Atomic(iflag);
-  
+
     return 0;
 }
 
 /*
  * Store a value for a thread-local item
  */
-void Tlocal_Put(tlocal_key_t k, const void *v) 
+void Tlocal_Put(tlocal_key_t k, const void *v)
 {
     const void **pv;
 
@@ -816,7 +990,7 @@ void Tlocal_Put(tlocal_key_t k, const void *v)
 /*
  * Acquire a thread-local value
  */
-void *Tlocal_Get(tlocal_key_t k) 
+void *Tlocal_Get(tlocal_key_t k)
 {
     const void **pv;
 

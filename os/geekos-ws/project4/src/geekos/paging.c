@@ -3,7 +3,7 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.55 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -22,10 +22,16 @@
 #include <geekos/vfs.h>
 #include <geekos/crc32.h>
 #include <geekos/paging.h>
+#include <geekos/bitset.h>
 
 /* ----------------------------------------------------------------------
  * Public data
  * ---------------------------------------------------------------------- */
+
+pde_t *g_kernel_pde = NULL;
+void* bitmapPaging = NULL;
+struct Paging_Device *pagingDevice;
+static int numOfPagingPages = 0;
 
 /* ----------------------------------------------------------------------
  * Private functions/data
@@ -90,21 +96,179 @@ static void Print_Fault_Info(uint_t address, faultcode_t faultCode)
     /* Get the fault code */
     faultCode = *((faultcode_t *) &(state->errorCode));
 
-    /* rest of your handling code here */
-    Print ("Unexpected Page Fault received\n");
-    Print_Fault_Info(address, faultCode);
-    Dump_Interrupt_State(state);
-    /* user faults just kill the process */
-    if (!faultCode.userModeFault) KASSERT(0);
-
-    /* For now, just kill the thread/process. */
-    Exit(-1);
+    struct User_Context *userContext = g_currentThread->userContext;
+    if (faultCode.writeFault) {
+        int res = Alloc_User_Page(userContext->pageDir, Round_Down_To_Page(address), PAGE_SIZE);
+        if (res == -1) { Exit(-1); }
+        return;
+    } else {
+        ulong_t page_dir_addr = address >> 22;
+        ulong_t page_addr = (address << 10) >> 22;
+        pde_t *page_dir_entry = (pde_t*)userContext->pageDir + page_dir_addr;
+        pte_t *page_entry = NULL;
+        if (page_dir_entry->present) {
+            page_entry = (pte_t*)(page_dir_entry->pageTableBaseAddr << 12);
+            page_entry += page_addr;
+        } else {
+            Print_Fault_Info(address, faultCode);
+            Exit(-1);
+        }
+        if (page_entry->kernelInfo != KINFO_PAGE_ON_DISK) {
+            Print_Fault_Info(address, faultCode);
+            Exit(-1);
+        }
+        int pagefile_index = page_entry->pageBaseAddr;
+        void *paddr = Alloc_Pageable_Page(page_entry, Round_Down_To_Page(address));
+        if (paddr == NULL) { Exit(-1); }
+        *(uint_t*)page_entry = 0;
+        page_entry->present = 1;
+        page_entry->flags = VM_WRITE | VM_READ | VM_USER;
+        page_entry->globalPage = 0;
+        page_entry->pageBaseAddr = (ulong_t)paddr >> 12;
+        Enable_Interrupts();
+        Read_From_Paging_File(paddr, Round_Down_To_Page(address), pagefile_index);
+        Disable_Interrupts();
+        Free_Space_On_Paging_File(pagefile_index);
+        return;
+    }
 }
 
 /* ----------------------------------------------------------------------
  * Public functions
  * ---------------------------------------------------------------------- */
 
+uint_t lin_to_phyaddr(pde_t *page_dir, uint_t lin_addr)
+{
+    uint_t dir_index = lin_addr >> 22;
+    uint_t page_index = (lin_addr << 10) >> 22;
+    uint_t offset = lin_addr & 0xfff;
+    pde_t *pagedir_entry = page_dir + dir_index;
+    if (pagedir_entry->present) {
+        pte_t *page_entry = (pte_t*)((uint_t)pagedir_entry->pageTableBaseAddr << 12);
+        page_entry += page_index;
+        return (page_entry->pageBaseAddr << 12) + offset;
+    } else {
+        return 0;
+    }
+}
+
+int Alloc_User_Page(pde_t *pageDir, uint_t startAddress, uint_t sizeInMemory)
+{
+    uint_t dirindex = startAddress >> 22;
+    uint_t pageindex = (startAddress << 10) >> 22;
+    pde_t *pagedir_entry = pageDir + dirindex;
+    pte_t *page_entry = NULL;
+
+    if (pagedir_entry->present) {
+        page_entry = (pte_t*)(pagedir_entry->pageTableBaseAddr << 12);
+    } else {
+        page_entry = (pte_t*)Alloc_Page();
+        if (page_entry == NULL) { return -1; }
+        memset(page_entry, 0, PAGE_SIZE);
+        *(uint_t*)pagedir_entry = 0;
+        pagedir_entry->present = 1;
+        pagedir_entry->flags = VM_WRITE | VM_READ | VM_USER;
+        pagedir_entry->pageTableBaseAddr = (ulong_t)page_entry >> 12;
+    }
+
+    page_entry += pageindex;
+    void *page_addr = NULL;
+    int num_pages = Round_Up_To_Page(startAddress - Round_Down_To_Page(startAddress) + sizeInMemory) / PAGE_SIZE;
+    uint_t first_page_addr = 0;
+    for (int i = 0; i < num_pages; ++i) {
+        if (!page_entry->present) {
+            page_addr = Alloc_Pageable_Page(page_entry, Round_Down_To_Page(startAddress));
+            if (page_addr == NULL) { return -1; }
+            *(uint_t*)page_entry = 0;
+            page_entry->present = 1;
+            page_entry->flags = VM_WRITE | VM_READ | VM_USER;
+            page_entry->globalPage = 0;
+            page_entry->pageBaseAddr = (ulong_t)page_addr >> 12;
+            KASSERT(page_addr != 0);
+            if (i == 0) {
+                first_page_addr = (uint_t)page_addr;
+            }
+        }
+        ++page_entry;
+        startAddress += PAGE_SIZE;
+    }
+    return 0;
+}
+
+void Free_User_Pages(struct User_Context *context)
+{
+    pde_t *dir = context->pageDir;
+    for (int i = 512; i < 1019; ++i) { //<! 1019 -> APIC
+        pde_t *pde = dir + i;
+        if (pde->present) {
+            pte_t *table = (pte_t*)(pde->pageTableBaseAddr << 12);
+            for (int j = 0; j < 1024; ++j) {
+                pte_t *pte = table + j;
+                if (pte->present) {
+                    if (pte->kernelInfo != KINFO_PAGE_ON_DISK) {
+                        Free_Page((void*)((uint_t)pte->pageBaseAddr << 12));
+                    } else {
+                        Free_Space_On_Paging_File(pte->pageBaseAddr);
+                    }
+                }
+            }
+            Free_Page(table);
+        }
+    }
+    Free_Page(dir);
+}
+
+bool Copy_User_Page(pde_t *pagedir, uint_t user_dest, char *src, uint_t bytes)
+{
+    uint_t tmplen = 0;
+    int page_nums = 0;
+    if (Round_Down_To_Page(user_dest + bytes) == Round_Down_To_Page(user_dest)) {
+        tmplen = bytes;
+        page_nums = 1;
+    } else {
+        tmplen = Round_Up_To_Page(user_dest) - user_dest;
+        bytes -= tmplen;
+        page_nums = 0;
+    }
+
+    uint_t phy_start = lin_to_phyaddr(pagedir, user_dest);
+    if (phy_start == 0) { return false; }
+    struct Page *page = Get_Page(phy_start);
+    Disable_Interrupts();
+    page->flags &= ~PAGE_PAGEABLE;
+    Enable_Interrupts();
+    memcpy((void*)phy_start, src, tmplen);
+    page->flags |= PAGE_PAGEABLE;
+    if (page_nums == 1) { return true; }
+    tmplen = Round_Up_To_Page(user_dest) - user_dest;
+    user_dest += tmplen;
+    src += tmplen;
+    bytes -= tmplen;
+
+    while (user_dest != Round_Down_To_Page(user_dest + bytes)) {
+        phy_start = lin_to_phyaddr(pagedir, user_dest);
+        if (phy_start == 0) { return false; }
+        page = Get_Page(phy_start);
+        Disable_Interrupts();
+        page->flags &= ~PAGE_PAGEABLE;
+        Enable_Interrupts();
+        memcpy((void*)phy_start, src, PAGE_SIZE);
+        page->flags |= PAGE_PAGEABLE;
+        user_dest += PAGE_SIZE;
+        src += PAGE_SIZE;
+        bytes -= PAGE_SIZE;
+    }
+
+    phy_start = lin_to_phyaddr(pagedir, user_dest);
+    if (phy_start == 0) { return false; }
+    page = Get_Page(phy_start);
+    Disable_Interrupts();
+    page->flags &= ~PAGE_PAGEABLE;
+    Enable_Interrupts();
+    memcpy((void*)phy_start, src, bytes);
+    page->flags |= PAGE_PAGEABLE;
+    return true;
+}
 
 /*
  * Initialize virtual memory by building page tables
@@ -121,7 +285,43 @@ void Init_VM(struct Boot_Info *bootInfo)
      * - Do not map a page at address 0; this will help trap
      *   null pointer references
      */
-    TODO("Build initial kernel page directory and page tables");
+
+    int num_dir_entries = (bootInfo->memSizeKB / 4) / NUM_PAGE_TABLE_ENTRIES + 1;
+    g_kernel_pde = Alloc_Page();
+    KASSERT(g_kernel_pde != NULL);
+    memset(g_kernel_pde, 0, PAGE_SIZE);
+    for (int i = 0; i < num_dir_entries; ++i) {
+        g_kernel_pde[i].flags = VM_WRITE | VM_USER;
+        g_kernel_pde[i].present = 1;
+        pte_t *first_pte = Alloc_Page();
+        KASSERT(first_pte != NULL);
+        memset(first_pte, 0, PAGE_SIZE);
+        g_kernel_pde[i].pageTableBaseAddr = ((uint_t)first_pte) >> 12;
+        uint_t mem = i * NUM_PAGE_TABLE_ENTRIES * PAGE_SIZE;
+        for (int j = 0; j < NUM_PAGE_TABLE_ENTRIES; ++j) {
+            first_pte[j].flags = VM_WRITE;
+            first_pte[j].present = 1;
+            first_pte[j].pageBaseAddr = mem >> 12;
+            mem += PAGE_SIZE;
+        }
+    }
+    int i = 1019;
+    g_kernel_pde[i].present = 1;
+    g_kernel_pde[i].flags = VM_WRITE;
+    pte_t *first_pte = Alloc_Page();
+    KASSERT(first_pte != NULL);
+    memset(first_pte, 0, PAGE_SIZE);
+    g_kernel_pde[i].pageTableBaseAddr = ((uint_t)first_pte) >> 12;
+    uint_t mem = i * NUM_PAGE_TABLE_ENTRIES * PAGE_SIZE;
+    for (int j = 0; j < NUM_PAGE_TABLE_ENTRIES; ++j) {
+        first_pte[j].flags = VM_WRITE;
+        first_pte[j].present = 1;
+        first_pte[j].pageBaseAddr = mem >> 12;
+        mem += PAGE_SIZE;
+    }
+    Enable_Paging(g_kernel_pde);
+    Install_Interrupt_Handler(14, Page_Fault_Handler);
+    Install_Interrupt_Handler(16, Page_Fault_Handler);
 }
 
 /**
@@ -131,7 +331,10 @@ void Init_VM(struct Boot_Info *bootInfo)
  */
 void Init_Paging(void)
 {
-    TODO("Initialize paging file data structures");
+    pagingDevice = Get_Paging_Device();
+    KASSERT(pagingDevice != NULL);
+    numOfPagingPages = pagingDevice->numSectors / SECTORS_PER_PAGE;
+    bitmapPaging = Create_Bit_Set(numOfPagingPages);
 }
 
 /**
@@ -143,7 +346,7 @@ void Init_Paging(void)
 int Find_Space_On_Paging_File(void)
 {
     KASSERT(!Interrupts_Enabled());
-    TODO("Find free page in paging file");
+    return Find_First_Free_Bit(bitmapPaging, numOfPagingPages);
 }
 
 /**
@@ -154,7 +357,8 @@ int Find_Space_On_Paging_File(void)
 void Free_Space_On_Paging_File(int pagefileIndex)
 {
     KASSERT(!Interrupts_Enabled());
-    TODO("Free page in paging file");
+    KASSERT(pagefileIndex >= 0 && pagefileIndex < numOfPagingPages);
+    Clear_Bit(bitmapPaging, pagefileIndex);
 }
 
 /**
@@ -169,7 +373,13 @@ void Write_To_Paging_File(void *paddr, ulong_t vaddr, int pagefileIndex)
 {
     struct Page *page = Get_Page((ulong_t) paddr);
     KASSERT(!(page->flags & PAGE_PAGEABLE)); /* Page must be locked! */
-    TODO("Write page data to paging file");
+    KASSERT(page->flags & PAGE_LOCKED);
+    KASSERT(pagefileIndex >= 0 && pagefileIndex < numOfPagingPages);
+    for (int i = 0; i < SECTORS_PER_PAGE; ++i) {
+        int blockNum = pagefileIndex * SECTORS_PER_PAGE + i + pagingDevice->startSector;
+        Block_Write(pagingDevice->dev, blockNum, paddr + i * SECTOR_SIZE);
+    }
+    Set_Bit(bitmapPaging, pagefileIndex);
 }
 
 /**
@@ -185,6 +395,10 @@ void Read_From_Paging_File(void *paddr, ulong_t vaddr, int pagefileIndex)
 {
     struct Page *page = Get_Page((ulong_t) paddr);
     KASSERT(!(page->flags & PAGE_PAGEABLE)); /* Page must be locked! */
-    TODO("Read page data from paging file");
+    KASSERT(page->flags & PAGE_LOCKED);
+    KASSERT(pagefileIndex >= 0 && pagefileIndex < numOfPagingPages);
+    for (int i = 0; i < SECTORS_PER_PAGE; ++i) {
+        int blockNum = pagefileIndex * SECTORS_PER_PAGE + i + pagingDevice->startSector;
+        Block_Read(pagingDevice->dev, blockNum, paddr + i * SECTOR_SIZE);
+    }
 }
-

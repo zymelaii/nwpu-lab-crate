@@ -3,7 +3,7 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2003, David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.29 $
- * 
+ *
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -31,6 +31,19 @@
 int Parse_ELF_Executable(char *exeFileData, ulong_t exeFileLength,
     struct Exe_Format *exeFormat)
 {
-    TODO("Parse an ELF executable image");
+	elfHeader *ehdr = (elfHeader*)exeFileData;
+	exeFormat->numSegments = ehdr->phnum;
+	exeFormat->entryAddr = ehdr->entry;
+	programHeader *phdr = (programHeader*)(exeFileData + ehdr->phoff);
+	unsigned int i;
+	for(i = 0; i < exeFormat->numSegments; i++, phdr++)
+	{
+		struct Exe_Segment *segment = &exeFormat->segmentList[i];
+		segment->offsetInFile = phdr->offset;
+		segment->lengthInFile = phdr->fileSize;
+		segment->startAddress = phdr->vaddr;
+		segment->sizeInMemory = phdr->memSize;
+		segment->protFlags = phdr->flags;
+	}
+	return 0;
 }
-
