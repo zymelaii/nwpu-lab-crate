@@ -28,7 +28,7 @@ typedef struct {
 } bootSector;
 
 typedef struct {
-    char fileName[8+4];
+    char fileName[10+4];
 
     /* attribute bits */
     char readOnly:1;

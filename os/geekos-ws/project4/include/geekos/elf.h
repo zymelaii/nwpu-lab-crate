@@ -3,15 +3,13 @@
  * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
  * Copyright (c) 2003, David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.14 $
- *
+ * 
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
 
 #ifndef GEEKOS_ELF_H
 #define GEEKOS_ELF_H
-
-#include <geekos/ktypes.h>
 
 /*
  * ELF header at the beginning of the executable.
@@ -90,3 +88,4 @@ int Parse_ELF_Executable(char *exeFileData, ulong_t exeFileLength,
     struct Exe_Format *exeFormat);
 
 #endif  /* GEEKOS_ELF_H */
+

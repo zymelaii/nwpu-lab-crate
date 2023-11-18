@@ -53,11 +53,11 @@ int main(int argc, char **argv)
     char *command;
 
     /* Set attribute to gray on black. */
-    Print("\x1B[37m");
+    Print_String("\x1B[37m");
 
     while (true) {
 	/* Print shell prompt (bright cyan on black background) */
-	Print("\x1B[1;36m$\x1B[37m ");
+	Print_String("\x1B[1;36m$\x1B[37m ");
 
 	/* Read a line of input */
 	Read_Line(commandBuf, sizeof(commandBuf));

@@ -33,7 +33,8 @@ do {							\
 #define TODO(message)					\
 do {							\
     Set_Current_Attr(ATTRIB(BLUE, GRAY|BRIGHT));	\
-    Print("Unimplemented feature: %s\n", (message));	\
+    Print("Unimplemented feature at %s, line %d\n: %s\n", \
+    __FILE__, __LINE__,(message));	\
     while (1)						\
 	;						\
 } while (0)

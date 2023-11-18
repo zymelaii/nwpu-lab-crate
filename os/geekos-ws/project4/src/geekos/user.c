@@ -2,7 +2,7 @@
  * Common user mode functions
  * Copyright (c) 2001,2003,2004 David H. Hovemeyer <daveho@cs.umd.edu>
  * $Revision: 1.50 $
- *
+ * 
  * This is free software.  You are permitted to use,
  * redistribute, and modify it as specified in the file "COPYING".
  */
@@ -27,7 +27,7 @@
  * Associate the given user context with a kernel thread.
  * This makes the thread a user process.
  */
-void Attach_User_Context(struct Kernel_Thread* kthread, struct User_Context* context)
+void Attach_User_Context(struct Kernel_Thread *kthread, struct User_Context *context)
 {
     KASSERT(context != 0);
     kthread->userContext = context;
@@ -49,35 +49,36 @@ void Attach_User_Context(struct Kernel_Thread* kthread, struct User_Context* con
  * and destroy it.  This is called when a thread is
  * being destroyed.
  */
-void Detach_User_Context(struct Kernel_Thread* kthread)
+void Detach_User_Context(struct Kernel_Thread *kthread)
 {
-    struct User_Context* old = kthread->userContext;
+    struct User_Context *old = kthread->userContext;
 
     kthread->userContext = 0;
 
-    if (old != 0) {
-	int refCount;
+    if (old != 0)
+    {
+        int refCount;
 
-	Disable_Interrupts();
+        Disable_Interrupts();
         --old->refCount;
-	refCount = old->refCount;
-	Enable_Interrupts();
+        refCount = old->refCount;
+        Enable_Interrupts();
 
-	/*Print("User context refcount == %d\n", refCount);*/
+        /*Print("User context refcount == %d\n", refCount);*/
         if (refCount == 0)
             Destroy_User_Context(old);
     }
 }
 
-/*
+/**
  * Spawn a user process.
  * Params:
- *   program - the full path of the program executable file
- *   command - the command, including name of program and arguments
- *   pThread - reference to Kernel_Thread pointer where a pointer to
+ * @param program 要读入内存缓冲区的可执行文件 - the full path of the program executable file
+ * @param command 用户执行程序执行时的命令行字符串 - the command, including name of program and arguments
+ * @param pThread 存放指向刚创建进程的指针 - reference to Kernel_Thread pointer where a pointer to
  *     the newly created user mode thread (process) should be
  *     stored
- * Returns:
+ * @return 
  *   The process id (pid) of the new process, or an error code
  *   if the process couldn't be created.  Note that this function
  *   should return ENOTFOUND if the reason for failure is that
@@ -98,48 +99,44 @@ int Spawn(const char *program, const char *command, struct Kernel_Thread **pThre
      * If all goes well, store the pointer to the new thread in
      * pThread and return 0.  Otherwise, return an error code.
      */
-            int res;
+    // TODO("Spawn a process by reading an executable from a filesystem");
+    int res;
 
     /* 读取 ELF 文件 */
     char *exeFileData = NULL;
     ulong_t exeFileLength = 0;
-    res = Read_Fully(program, (void**)&exeFileData, &exeFileLength);
-    bool userDebug = false;
+    res = Read_Fully(program, (void **)&exeFileData, &exeFileLength);
     if (res != 0)
     {
-//	if (userDebug)
-//	    Print("Error! Failed to read file %s\n", program);
-	if (exeFileData != NULL) Free(exeFileData);
-	return ENOTFOUND;
+        if (exeFileData != NULL)
+            Free(exeFileData);
+        return ENOTFOUND;
     }
-//    if (userDebug) Print("Read_Fully OK\n");
 
     /* 分析 ELF 文件 */
     struct Exe_Format exeFormat;
     res = Parse_ELF_Executable(exeFileData, exeFileLength, &exeFormat);
     if (res != 0)
     {
-//	if (userDebug)
-//	    Print("Error! Failed to parse ELF file\n");
-	if (exeFileData != NULL) Free(exeFileData);
-	return res;
+        if (exeFileData != NULL)
+            Free(exeFileData);
+        return res;
     }
-//    if (userDebug) Print("Parse_ELF_Executable OK\n");
 
     /* 加载用户程序 */
     struct User_Context *userContext = NULL;
     res = Load_User_Program(exeFileData, exeFileLength, &exeFormat, command, &userContext);
     if (res != 0)
     {
-//	if (userDebug)
-//	    Print("Error! Failed to Load User Program\n");
-	if (exeFileData != NULL) Free(exeFileData);
-	if (userContext != NULL) Destroy_User_Context(userContext);
-	return res;
+        if (exeFileData != NULL)
+            Free(exeFileData);
+        if (userContext != NULL)
+            Destroy_User_Context(userContext);
+        return res;
     }
-    if (exeFileData != NULL) Free(exeFileData);
+    if (exeFileData != NULL)
+        Free(exeFileData);
     exeFileData = NULL;
-//    if (userDebug) Print("Load_User_Program OK\n");
 
     /* 开始用户进程 */
     struct Kernel_Thread *thread = NULL;
@@ -147,55 +144,54 @@ int Spawn(const char *program, const char *command, struct Kernel_Thread **pThre
     /* 超出内存 创建新进程失败 */
     if (thread == NULL)
     {
-	if (userDebug)
-             Print("Error! Failed to Start User Thread\n");
-        if (userContext != NULL) Destroy_User_Context(userContext);
-             return ENOMEM;
+        if (userContext != NULL)
+            Destroy_User_Context(userContext);
+        return ENOMEM;
     }
-    if (userDebug) Print("Start_User_Thread OK\n");
 
     KASSERT(thread->refCount == 2);
     /* 返回核心进程的指针 */
     *pThread = thread;
-
-    return 0;
+    return (*pThread)->pid;
 }
 
-/*
+/**
  * If the given thread has a User_Context,
  * switch to its memory space.
  *
- * Params:
- *   kthread - the thread that is about to execute
- *   state - saved processor registers describing the state when
+ * @param kthread 存放指向进程的指针- the thread that is about to execute
+ * @param state - saved processor registers describing the state when
  *      the thread was interrupted
  */
-void Switch_To_User_Context(struct Kernel_Thread* kthread, struct Interrupt_State* state)
+void Switch_To_User_Context(struct Kernel_Thread *kthread, struct Interrupt_State *state)
 {
     /*
      * Hint: Before executing in user mode, you will need to call
      * the Set_Kernel_Stack_Pointer() and Switch_To_Address_Space()
      * functions.
      */
-    static struct User_Context* s_currentUserContext;
+    // TODO("Switch to a new user address space, if necessary");
 
-	//指向User_Conetxt的指针，并初始化为准备切换的进程
- 	struct User_Context* userContext = kthread->userContext;
+    static struct User_Context *s_currentUserContext;
 
- 	KASSERT(!Interrupts_Enabled());
+    //指向User_Conetxt的指针，并初始化为准备切换的进程
+    struct User_Context *userContext = kthread->userContext;
 
- 	//userContext为0表示此进程为核心态进程就不用切换地址空间
- 	if (userContext == 0) return;
+    KASSERT(!Interrupts_Enabled());
 
- 	if (userContext != s_currentUserContext)
- 	{
-		//为用户态进程时则切换地址空间
- 		Switch_To_Address_Space(userContext);
- 		//新进程的核心栈指针
- 		ulong_t esp0 = ((ulong_t)kthread->stackPage) + PAGE_SIZE;
-		//设置内核堆栈指针
- 		Set_Kernel_Stack_Pointer(esp0);
- 		//保存新的 userContxt
- 		s_currentUserContext = userContext;
- 	}
+    //userContext为0表示此进程为核心态进程就不用切换地址空间
+    if (userContext == 0)
+        return;
+
+    if (userContext != s_currentUserContext)
+    {
+        //为用户态进程时则切换地址空间
+        Switch_To_Address_Space(userContext);
+        //新进程的核心栈指针
+        ulong_t esp0 = ((ulong_t)kthread->stackPage) + PAGE_SIZE;
+        //设置内核堆栈指针
+        Set_Kernel_Stack_Pointer(esp0);
+        //保存新的 userContxt
+        s_currentUserContext = userContext;
+    }
 }

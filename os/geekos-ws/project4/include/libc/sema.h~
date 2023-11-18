@@ -1,0 +1,43 @@
+/*
+ * Semaphores
+ * Copyright (c) 2003, Jeffrey K. Hollingsworth <hollings@cs.umd.edu>
+ * Copyright (c) 2004, David H. Hovemeyer <daveho@cs.umd.edu>
+ * $Revision: 1.7 $
+ * 
+ * This is free software.  You are permitted to use,
+ * redistribute, and modify it as specified in the file "COPYING".
+ */
+
+#ifndef SEMA_H
+#define SEMA_H
+#define MAX_SEMAPHORE_NAME 25
+#define MAX_REGISTERED_THREADS 20
+#include <geekos/list.h>
+#include <geekos/ktypes.h>
+static struct Semaphore_List s_SemaphoreList;
+static int ID=0;
+
+struct Semaphore;
+/*master list of semphores*/
+DEFINE_LIST(Semaphore_List,Semaphore);
+
+typedef struct Semaphore{
+     int semaphoreID;
+     char *semaphoreName;
+     int value;
+     int registeredThreadCount;
+     struct Kernel_Thread *registeredThreads[MAX_REGISTERED_THREADS];
+     struct Thread_Queue waitingThreads;
+     DEFINE_LINK(Semaphore_List,Semaphore);
+     };
+
+/*implement (expand macros) Semaphore List Functionality*/
+IMPLEMENT_LIST(Semaphore_List,Semaphore);
+
+int Create_Semaphore(const char *name, int ival);
+int P(int sem);
+int V(int sem);
+int Destroy_Semaphore(int sem);
+
+#endif  /* SEMA_H */
+

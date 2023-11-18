@@ -83,7 +83,7 @@ align 8
 	push	dword %1	; push interrupt number
 	jmp	Handle_Interrupt ; jump to common handler
 	nop
-	nop				 	 ; NOTE: align Int_With_Err to 16 bytes
+	nop
 %endmacro
 
 ; Template for entry point code for interrupts that do not

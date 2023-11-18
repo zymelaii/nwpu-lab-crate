@@ -40,7 +40,7 @@ struct Segment_Descriptor {
     uint_t reserved    : 1  PACKED ;  /* set to zero */
     uint_t dbBit       : 1  PACKED ;
     uint_t granularity : 1  PACKED ;
-    uchar_t baseHigh        PACKED ;
+    uint_t baseHigh    : 8  PACKED ;
 };
 
 /**
