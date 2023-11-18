@@ -1,0 +1,29 @@
+# An example .bochsrc file.
+
+# You will need to edit these lines to reflect your system.
+vgaromimage: /export/home/daveho/linux/bochs-2.0.2/share/bochs/VGABIOS-lgpl-latest
+romimage: file=/export/home/daveho/linux/bochs-2.0.2/share/bochs/BIOS-bochs-latest, address=0xf0000
+
+# For paging project, use a very small memory configuration.
+megs: 3
+boot: a
+
+diskc: file=diskc.img, cyl=40, heads=8, spt=64
+
+floppya: 1_44=fd.img, status=inserted
+#floppya: 1_44=fd_aug.img, status=inserted
+
+log: ./bochs.out
+keyboard_serial_delay: 200
+floppy_command_delay: 500
+vga_update_interval: 300000
+ips:  1000000
+mouse: enabled=0
+private_colormap: enabled=0
+i440fxsupport: enabled=0
+newharddrivesupport: enabled=1
+
+# Uncomment this to write all bochs debugging messages to
+# bochs.out.  This produces a lot of output, but can be very
+# useful for debugging the kernel.
+#debug: action=report
