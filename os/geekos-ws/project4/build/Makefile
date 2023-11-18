@@ -332,14 +332,14 @@ run: fd.img diskc.img
 		-boot a -drive format=raw,index=0,if=floppy,file=$< \
 		-drive format=raw,file=diskc.img \
 		-display curses \
-		-m 32M
+		-m 8M
 
 run-debug: fd.img diskc.img
 	@qemu-system-i386 \
 		-boot a -drive format=raw,index=0,if=floppy,file=$< \
 		-drive format=raw,file=diskc.img \
 		-display curses \
-		-m 32M \
+		-m 8M \
 		-s -S
 
 include depend.mak
