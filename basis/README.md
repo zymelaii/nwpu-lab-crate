@@ -214,7 +214,7 @@ kaboom 启动需要加个 -n 参数，跟 boom 唯一的区别就是 test 换成
 编译指令：
 
 ```assembly
-nasm solve-kabomb.s -f elf
+gcc -c solve-kabomb.s
 objcopy -O binary -j .text solve-kabomb.o solve-kabomb.bin
 ```
 
