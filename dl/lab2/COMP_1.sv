@@ -7,7 +7,7 @@ module COMP_1 (
 );
 
 assign eq = ~(lhs ^ rhs);
-assign lt = lhs & ~rhs;
-assign gt = ~lhs & rhs;
+assign lt = ~lhs & rhs;
+assign gt = lhs & ~rhs;
 
 endmodule : COMP_1

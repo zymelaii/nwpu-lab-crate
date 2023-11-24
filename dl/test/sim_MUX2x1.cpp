@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     vluint64_t simTime = 0;
     int        dat_in  = 0;
     for (int i = 0; i < (1 << 2); ++i) {
-        for (int j = 0; j < 1; ++j) {
+        for (int j = 0; j < 2; ++j) {
             dut->dat_in = i;
             dut->sel    = j;
             dut->eval();
