@@ -14,7 +14,7 @@ all: $(patsubst %,%.ans,$(TARGETS))
 .PHONY: all
 
 clean:
-	@rm *.bin *.ans
+	@rm -rf *.bin *.ans
 .PHONY: clean
 
 %.o: %.s
