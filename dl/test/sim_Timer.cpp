@@ -43,10 +43,12 @@ int main(int argc, char *argv[]) {
     dut->en  = 1;
     dut->clk = 0;
     dut->eval();
+    trace->dump(simTime);
+    simTime += 2;
     dut->clk = 1;
     dut->eval();
     trace->dump(simTime);
-    simTime += 4;
+    simTime += 2;
     assert(dut->ready == 0);
     assert(dut->notify == 0);
 
@@ -66,7 +68,7 @@ int main(int argc, char *argv[]) {
             dut->clk = !dut->clk;
             dut->eval();
         }
-        simTime += 10000;
+        simTime += 10000 * 4;
         trace->dump(simTime);
     }
     goto fail;
