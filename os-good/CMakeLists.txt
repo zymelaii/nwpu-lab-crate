@@ -13,7 +13,8 @@ add_executable(p-graph case5/p-graph.cpp)
 add_executable(p-space case6/p-space.cpp)
 add_executable(thread case7/thread.cpp)
 
-add_executable(gendate lab2/gendata.cpp)
+add_executable(gendata lab2/gendata.cpp)
+add_executable(par-sort lab2/par-sort.cpp)
 
 set(
     LAB3_SOURCES
