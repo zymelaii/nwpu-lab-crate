@@ -1,0 +1,3 @@
+[submodule "sql/src/lab8"]
+	path = sql/src/lab8
+	url = git@github.com:zymelaii/fake-railway-sys.git
