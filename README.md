@@ -34,5 +34,6 @@
 - [x] `compiler-x` 编译原理试点班 [👉](https://github.com/zymelaii/SSYC)
 - [x] `net` 计算机网络实验 [👉](./net/)
 - [ ] `cg` 计算机图形学
+- [x] `cuda` GPU 并行程序设计
 
 > 所有条目收录起于 2021 级
