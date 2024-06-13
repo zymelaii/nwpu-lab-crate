@@ -108,3 +108,8 @@
 
 - [CUDA](https://en.wikipedia.org/wiki/CUDA)
 - [CUDA Thread block](https://en.wikipedia.org/wiki/Thread_block_(CUDA_programming))
+- [解决 bank conflict](https://github.com/PaddleJitLab/CUDATutorial/blob/develop/docs/09_optimize_reduce/02_bank_conflict/README.md)
+- [CUDA bank 及 bank conflict](https://blog.csdn.net/weixin_42730667/article/details/106171382)
+- [CUDA 知识点：bank 冲突](http://www.zh0ngtian.tech/posts/96744e8c.html)
+- [详解 CUDA 的 Context、Stream、Warp、SM、SP、Kernel、Block、Grid](https://zhuanlan.zhihu.com/p/266633373)
+- [CUDA 编程第五章: 共享内存 & 常量内存](https://blog.csdn.net/qq_42683011/article/details/113820683)
